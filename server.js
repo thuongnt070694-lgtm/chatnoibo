@@ -59,19 +59,18 @@ try {
   console.error("Lỗi đọc group_db.json:", e);
 }
 
-// Đảm bảo cấu trúc các trường hợp lệ và tất cả tài khoản đều là thành viên nhóm chung
+// Đảm bảo cấu trúc các trường hợp lệ - Nhóm nội bộ chỉ ai được thêm mới được vào nhóm
 if (!Array.isArray(groupInfo.members)) {
-  groupInfo.members = accounts.map(a => a.username);
-} else {
-  accounts.forEach(a => {
-    if (a.username && !groupInfo.members.includes(a.username)) {
-      groupInfo.members.push(a.username);
-    }
-  });
+  groupInfo.members = ["thuongnt", "thuong", "thuongnt2", "dienne"];
 }
 if (!groupInfo.leader && accounts.length > 0) {
   groupInfo.leader = accounts[0].username;
 }
+if (groupInfo.leader && !groupInfo.members.includes(groupInfo.leader)) {
+  groupInfo.members.unshift(groupInfo.leader);
+}
+// Đảm bảo các mảng hỗ trợ hợp lệ
+
 if (!Array.isArray(groupInfo.deputies)) groupInfo.deputies = [];
 if (!Array.isArray(groupInfo.mutedUsers)) groupInfo.mutedUsers = [];
 if (typeof groupInfo.onlyAdminsCanChat !== 'boolean') groupInfo.onlyAdminsCanChat = false;
@@ -301,11 +300,6 @@ const server = http.createServer(async (req, res) => {
       accounts.push(newAccount);
       saveAccounts();
 
-      if (!groupInfo.members.includes(newAccount.username)) {
-        groupInfo.members.push(newAccount.username);
-        saveGroupInfo();
-      }
-
       broadcastEvent('new_user_registered', {
         username: newAccount.username,
         fullName: newAccount.fullName,
@@ -367,18 +361,58 @@ const server = http.createServer(async (req, res) => {
 
   // 4. LẤY TẤT CẢ TÀI KHOẢN & TRẠNG THÁI ONLINE
   if (pathname === '/api/users' && req.method === 'GET') {
-    const onlineSet = new Set(clients.map(c => c.username));
-    const userList = accounts.map(acc => ({
-      id: acc.id,
-      username: acc.username,
-      fullName: acc.fullName,
-      dept: acc.dept,
-      avatar: acc.avatar,
-      role: acc.role,
-      isOnline: onlineSet.has(acc.username)
-    }));
+    const onlineSet = new Set(clients.map(c => (c.username || '').toLowerCase().trim()));
+    const allUsersMap = new Map();
 
-    res.writeHead(200, { 'Content-Type': 'application/json' });
+    accounts.forEach(acc => {
+      const u = (acc.username || '').toLowerCase().trim();
+      if (u) {
+        allUsersMap.set(u, {
+          id: acc.id || ('acc_' + u),
+          username: u,
+          fullName: acc.fullName || u,
+          dept: acc.dept || 'Phòng Nội Bộ',
+          avatar: acc.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${u}`,
+          role: acc.role || 'Thành viên nội bộ',
+          isOnline: onlineSet.has(u)
+        });
+      }
+    });
+
+    clients.forEach(c => {
+      const u = (c.username || '').toLowerCase().trim();
+      if (u && !allUsersMap.has(u)) {
+        allUsersMap.set(u, {
+          id: 'acc_' + u,
+          username: u,
+          fullName: u.charAt(0).toUpperCase() + u.slice(1),
+          dept: 'Phòng Nội Bộ',
+          avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${u}`,
+          role: 'Thành viên nội bộ',
+          isOnline: true
+        });
+      }
+    });
+
+    messagesHistory.forEach(m => {
+      [m.senderUsername, m.targetUsername].forEach(u => {
+        const clean = (u || '').toLowerCase().trim();
+        if (clean && clean !== 'system' && !allUsersMap.has(clean)) {
+          allUsersMap.set(clean, {
+            id: 'acc_' + clean,
+            username: clean,
+            fullName: clean.charAt(0).toUpperCase() + clean.slice(1),
+            dept: 'Phòng Nội Bộ',
+            avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${clean}`,
+            role: 'Thành viên nội bộ',
+            isOnline: onlineSet.has(clean)
+          });
+        }
+      });
+    });
+
+    const userList = Array.from(allUsersMap.values());
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ users: userList, group: getEnrichedGroupInfo() }));
     return;
   }
@@ -811,16 +845,18 @@ const server = http.createServer(async (req, res) => {
 
       // Kiểm tra quyền gửi tin nhắn trong nhóm
       if (msgData.isGroup) {
-        const sender = (msgData.senderUsername || '').toLowerCase();
-        // Tự động đảm bảo người gửi là thành viên của nhóm chung
-        if (sender && !groupInfo.members.includes(sender)) {
-          groupInfo.members.push(sender);
-          saveGroupInfo();
+        const sender = (msgData.senderUsername || '').toLowerCase().trim();
+        // Kiểm tra xem người gửi có phải là thành viên của nhóm không
+        const isMember = Array.isArray(groupInfo.members) && groupInfo.members.map(m => (m || '').toLowerCase().trim()).includes(sender);
+        if (!isMember) {
+          res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ error: 'Bạn chưa được thêm vào Nhóm nội bộ này!' }));
+          return;
         }
 
         // 1. Kiểm tra có bị cấm chat cá nhân không
         if (groupInfo.mutedUsers && groupInfo.mutedUsers.includes(sender)) {
-          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ error: 'Bạn đã bị cấm chat trong nhóm này bởi Trưởng/Phó nhóm!' }));
           return;
         }
@@ -830,7 +866,7 @@ const server = http.createServer(async (req, res) => {
           const isLeader = (sender === groupInfo.leader);
           const isDeputy = groupInfo.deputies && groupInfo.deputies.includes(sender);
           if (!isLeader && !isDeputy) {
-            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
             res.end(JSON.stringify({ error: 'Chỉ Trưởng nhóm và Phó nhóm mới có quyền gửi tin nhắn lúc này!' }));
             return;
           }
@@ -839,8 +875,28 @@ const server = http.createServer(async (req, res) => {
 
       addMessage(msgData);
 
-      // Phát realtime tới TẤT CẢ client kết nối
-      broadcastEvent('new_message', msgData);
+      // Phát realtime tới đúng đối tượng:
+      if (msgData.isGroup) {
+        // Nhóm nội bộ: chỉ phát cho các thành viên trong nhóm
+        const groupMemberSet = new Set((groupInfo.members || []).map(m => (m || '').toLowerCase().trim()));
+        const payload = `data: ${JSON.stringify({ type: 'new_message', data: msgData })}\n\n`;
+        clients.forEach(c => {
+          if (c.username && groupMemberSet.has((c.username || '').toLowerCase().trim())) {
+            try { c.res.write(payload); } catch (err) {}
+          }
+        });
+      } else {
+        // Tin nhắn riêng 1-1: chỉ phát cho người gửi và người nhận
+        const s = (msgData.senderUsername || '').toLowerCase().trim();
+        const t = (msgData.targetUsername || (msgData.targetId ? msgData.targetId.replace(/^u_/, '') : '') || '').toLowerCase().trim();
+        const payload = `data: ${JSON.stringify({ type: 'new_message', data: msgData })}\n\n`;
+        clients.forEach(c => {
+          const u = (c.username || '').toLowerCase().trim();
+          if (u === s || u === t) {
+            try { c.res.write(payload); } catch (err) {}
+          }
+        });
+      }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'ok', message: msgData }));
@@ -854,10 +910,12 @@ const server = http.createServer(async (req, res) => {
   // 6.1 LẤY TOÀN BỘ LỊCH SỬ TIN NHẮN (THEO USERNAME)
   if (pathname === '/api/messages' && req.method === 'GET') {
     const username = (url.searchParams.get('username') || '').toLowerCase().trim();
+    const isGroupMember = Array.isArray(groupInfo.members) && groupInfo.members.map(m => (m || '').toLowerCase().trim()).includes(username);
 
     const userMessages = messagesHistory.filter(m => {
       if (m.isGroup) {
-        return true; // Tin nhắn nhóm chung nội bộ luôn hiển thị cho tất cả thành viên nội bộ
+        // Chỉ trả về tin nhắn nhóm nếu tài khoản này là thành viên nhóm
+        return isGroupMember;
       }
       const s = (m.senderUsername || '').toLowerCase().trim();
       const t = (m.targetUsername || (m.targetId ? m.targetId.replace(/^u_/, '') : '') || '').toLowerCase().trim();

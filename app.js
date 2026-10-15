@@ -478,8 +478,9 @@ function buildUserListFromAccounts(allAccounts, serverGroup) {
   // Bảo lưu tin nhắn nhóm nếu đã có từ trước
   const existingGroup = existingMap.get("grp_all");
 
-  // Nhóm Chat Chung Nội Bộ luôn khả dụng cho mọi thành viên
-  const isMember = true;
+  // Chỉ thành viên được Trưởng/Phó nhóm thêm mới thấy Nhóm Chat Chung trong danh bạ
+  const myUsername = (currentUser?.username || '').toLowerCase().trim();
+  const isMember = Array.isArray(groupInfo?.members) && groupInfo.members.some(u => (u || '').toLowerCase().trim() === myUsername);
 
   internalUsers = [];
 
@@ -533,14 +534,34 @@ function buildUserListFromAccounts(allAccounts, serverGroup) {
     });
   });
 
-  renderUserList();
-  const savedActiveConv = localStorage.getItem("chatexcel_last_active_conv");
-  const targetId = (savedActiveConv && internalUsers.some(u => u.id === savedActiveConv))
-    ? savedActiveConv
-    : (currentUserId && internalUsers.some(u => u.id === currentUserId) ? currentUserId : (internalUsers.length > 0 ? internalUsers[0].id : null));
+  // Giữ lại tất cả các cuộc trò chuyện riêng 1-1 đã mở trước đó để không bị mất
+  existingMap.forEach((u, key) => {
+    if (!u.isGroup && u.username && !internalUsers.some(item => (item.username || '').toLowerCase() === u.username.toLowerCase())) {
+      internalUsers.push(u);
+    }
+  });
 
-  if (targetId) {
+  renderUserList();
+
+  // Ưu tiên cao nhất: Giữ nguyên cuộc trò chuyện mà người dùng đang mở chat
+  let targetId = null;
+  if (currentUserId && internalUsers.some(u => u.id === currentUserId)) {
+    targetId = currentUserId;
+  } else {
+    const savedActiveConv = localStorage.getItem("chatexcel_last_active_conv");
+    if (savedActiveConv && internalUsers.some(u => u.id === savedActiveConv)) {
+      targetId = savedActiveConv;
+    } else if (internalUsers.length > 0) {
+      targetId = internalUsers[0].id;
+    }
+  }
+
+  if (targetId && (!currentUserId || targetId !== currentUserId)) {
     selectUser(targetId);
+  } else if (targetId && currentUserId === targetId) {
+    document.querySelectorAll(".user-item-card").forEach(el => {
+      el.classList.toggle("active", el.getAttribute("data-id") === targetId);
+    });
   }
 }
 
@@ -645,6 +666,46 @@ function updateLiveStats() {
 // ==========================================
 // 6. CHỌN CUỘC TRÒ CHUYỆN & CẬP NHẬT GIAO DIỆN
 // ==========================================
+window.openDirectChat = function(username) {
+  if (!username || !currentUser) return;
+  const targetUserClean = (username || '').toLowerCase().trim();
+  if (targetUserClean === (currentUser.username || '').toLowerCase().trim()) return;
+
+  const targetId = 'u_' + targetUserClean;
+  let targetUser = internalUsers.find(u => u.id === targetId || (u.username || '').toLowerCase().trim() === targetUserClean);
+  if (!targetUser) {
+    const acc = allSystemUsers.find(a => (a.username || '').toLowerCase().trim() === targetUserClean);
+    if (acc) {
+      targetUser = {
+        id: "u_" + acc.username,
+        username: acc.username,
+        name: acc.fullName,
+        title: acc.role || "Thành viên nội bộ",
+        dept: acc.dept || "Phòng Ban",
+        avatar: acc.avatar,
+        status: acc.isOnline ? "online" : "offline",
+        statusText: acc.isOnline ? "Đang trực tuyến • Sẵn sàng gọi & chat" : "Ngoại tuyến",
+        empId: "NV-" + (acc.username.toUpperCase()),
+        email: acc.username + "@chatexcel.lan",
+        ipAddress: "10.10.0.xxx",
+        loginTime: "Hôm nay",
+        device: "Web Browser",
+        unreadCount: 0,
+        isGroup: false,
+        messages: [],
+        sharedImages: [],
+        sharedFiles: [],
+        sharedLinks: []
+      };
+      internalUsers.push(targetUser);
+      renderUserList();
+    }
+  }
+  if (targetUser) {
+    selectUser(targetUser.id);
+  }
+};
+
 function selectUser(userId) {
   const user = internalUsers.find(u => u.id === userId);
   if (!user) return;
@@ -1173,6 +1234,12 @@ function renderGroupMembers() {
       }
     }
 
+    const directChatBtn = !isMe
+      ? `<button class="btn-direct-chat" onclick="openDirectChat('${escapeHtml(m.username)}')" title="Nhắn tin riêng 1-1 với ${escapeHtml(m.fullName)}">
+          <i class="fa-regular fa-comment-dots"></i>
+        </button>`
+      : "";
+
     const actionBtn = canManage
       ? `<button class="btn-member-action" onclick="openMemberActionPopover(event, '${escapeHtml(m.username)}')" title="Quản lý thành viên">
           <i class="fa-solid fa-ellipsis-vertical"></i>
@@ -1181,7 +1248,7 @@ function renderGroupMembers() {
 
     return `
       <div class="group-member-item">
-        <div class="member-left-col">
+        <div class="member-left-col" ${!isMe ? `onclick="openDirectChat('${escapeHtml(m.username)}')" style="cursor: pointer;" title="Bấm để nhắn tin riêng với ${escapeHtml(m.fullName)}"` : ''}>
           <div class="member-avatar-wrap">
             <img src="${m.avatar}" alt="${escapeHtml(m.fullName)}" class="member-avatar-img">
             <span class="status-indicator status-${m.isOnline ? 'online' : 'offline'}"></span>
@@ -1195,7 +1262,10 @@ function renderGroupMembers() {
             <span class="member-sub-info">@${escapeHtml(m.username)} • ${escapeHtml(m.dept || 'Nội bộ')}</span>
           </div>
         </div>
-        ${actionBtn}
+        <div class="member-actions-col">
+          ${directChatBtn}
+          ${actionBtn}
+        </div>
       </div>
     `;
   }).join("");
@@ -1297,6 +1367,12 @@ window.openMemberActionPopover = function(event, targetUsername) {
     roleEl.innerText = targetMember.role === "leader" ? "Trưởng nhóm" : targetMember.role === "deputy" ? "Phó nhóm" : "Thành viên";
   }
 
+  // 0. Nhắn tin riêng 1-1
+  const actDirectChat = document.getElementById("actDirectChat");
+  if (actDirectChat) {
+    actDirectChat.style.display = (targetMember.username !== currentUser?.username) ? "flex" : "none";
+  }
+
   // 1. Chuyển quyền Trưởng nhóm (chỉ Trưởng nhóm có quyền)
   if (actTransfer) {
     actTransfer.style.display = (myRole === "leader") ? "flex" : "none";
@@ -1351,6 +1427,15 @@ function setupGroupManagementEvents() {
     if (popover && !popover.contains(e.target)) {
       closeMemberActionPopover();
     }
+  });
+
+  // Nhắn tin riêng 1-1
+  const actDirectChat = document.getElementById("actDirectChat");
+  actDirectChat?.addEventListener("click", () => {
+    if (!currentActionTargetUsername) return;
+    const targetUsername = currentActionTargetUsername;
+    closeMemberActionPopover();
+    openDirectChat(targetUsername);
   });
 
   // Chuyển quyền Trưởng nhóm
@@ -2950,6 +3035,15 @@ function setupEventListeners() {
       currentFilter = this.getAttribute("data-filter");
       renderUserList();
     });
+  });
+
+  // Nút Cuộc trò chuyện mới
+  document.getElementById("btnOpenNewChat")?.addEventListener("click", () => {
+    const searchInput = document.getElementById("searchInput");
+    if (searchInput) {
+      searchInput.focus();
+      showToast("💬 Chọn một đồng nghiệp ở danh sách bên dưới để bắt đầu nhắn tin riêng!");
+    }
   });
 
   // Tìm kiếm

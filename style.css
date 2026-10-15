@@ -2230,6 +2230,32 @@ body.theme-dark .role-badge.muted {
   border-color: rgba(239, 68, 68, 0.4);
 }
 
+.member-actions-col {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-direct-chat {
+  background: transparent;
+  border: none;
+  color: var(--primary-color);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 13.5px;
+}
+.btn-direct-chat:hover {
+  background-color: var(--primary-light);
+  color: var(--primary-color);
+  transform: scale(1.1);
+}
+
 .btn-member-action {
   background: transparent;
   border: none;
