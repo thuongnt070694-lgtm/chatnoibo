@@ -1,0 +1,20 @@
+{
+  "name": "chatnoibo",
+  "version": "1.0.0",
+  "description": "Hệ thống Chat & Gọi thoại video LAN thời gian thực",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "keywords": [
+    "chat",
+    "lan",
+    "webrtc",
+    "realtime"
+  ],
+  "author": "thuongnt070694",
+  "license": "MIT"
+}

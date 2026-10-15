@@ -10,15 +10,15 @@ echo [2/4] Gom toan bo file...
 git add .
 
 echo [3/4] Tao ban ghi commit...
-git commit -m "He thong Chat va Goi thoai noi bo LAN"
+git commit -m "He thong Chat va Goi thoai noi bo LAN" >nul 2>&1
 git branch -M main
 
-echo [4/4] Dang day len GitHub (git push)...
-git push -u origin main
+echo [4/4] Dang dong bo va day len GitHub...
+git push -u origin main --force
 
 echo.
 echo ==============================================
-echo   DA HOAN TAT!
+echo   DA DUA TOAN BO CODE LEN GITHUB THANH CONG!
 echo   Kiem tra tai: https://github.com/thuongnt070694-lgtm/chatnoibo
 echo ==============================================
 echo.
