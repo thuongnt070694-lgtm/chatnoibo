@@ -798,6 +798,17 @@ const server = http.createServer(async (req, res) => {
     try {
       const msgData = await parseJsonBody(req);
 
+      if (!msgData.id) {
+        msgData.id = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+      }
+      if (!msgData.time) {
+        const now = new Date();
+        msgData.time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      }
+      if (!msgData.targetUsername && msgData.targetId) {
+        msgData.targetUsername = msgData.targetId.replace(/^u_/, '');
+      }
+
       // Kiểm tra quyền gửi tin nhắn trong nhóm
       if (msgData.isGroup) {
         const sender = (msgData.senderUsername || '').toLowerCase();
@@ -832,7 +843,7 @@ const server = http.createServer(async (req, res) => {
       broadcastEvent('new_message', msgData);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok' }));
+      res.end(JSON.stringify({ status: 'ok', message: msgData }));
     } catch (err) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Dữ liệu không hợp lệ' }));
@@ -849,7 +860,7 @@ const server = http.createServer(async (req, res) => {
         return true; // Tin nhắn nhóm chung nội bộ luôn hiển thị cho tất cả thành viên nội bộ
       }
       const s = (m.senderUsername || '').toLowerCase().trim();
-      const t = (m.targetUsername || '').toLowerCase().trim();
+      const t = (m.targetUsername || (m.targetId ? m.targetId.replace(/^u_/, '') : '') || '').toLowerCase().trim();
       return (s === username || t === username);
     });
 

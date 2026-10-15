@@ -268,6 +268,7 @@ function mergeMessages(listA, listB) {
 
 function hydrateMessagesIntoConversations(msgs) {
   if (!Array.isArray(msgs) || !currentUser) return;
+  if (msgs.length === 0) return; // Không bao giờ xóa hội thoại nếu danh sách nạp rỗng
   const myUsername = (currentUser.username || '').toLowerCase().trim();
 
   const currentTotal = internalUsers.reduce((sum, u) => sum + (u.messages ? u.messages.length : 0), 0);
@@ -290,7 +291,7 @@ function hydrateMessagesIntoConversations(msgs) {
       targetConv = internalUsers.find(u => u.isGroup);
     } else {
       const s = (m.senderUsername || '').toLowerCase().trim();
-      const t = (m.targetUsername || '').toLowerCase().trim();
+      const t = (m.targetUsername || (m.targetId ? m.targetId.replace(/^u_/, '') : '') || '').toLowerCase().trim();
       let partner = "";
       if (s === myUsername) partner = t;
       else if (t === myUsername) partner = s;
@@ -298,18 +299,19 @@ function hydrateMessagesIntoConversations(msgs) {
       if (partner) {
         targetConv = internalUsers.find(u => (u.username || '').toLowerCase().trim() === partner);
         if (!targetConv) {
+          const partnerAcc = allSystemUsers.find(a => (a.username || '').toLowerCase().trim() === partner);
           targetConv = {
             id: "u_" + partner,
             username: partner,
-            name: (s === partner ? m.senderName : null) || partner,
-            title: "Thành viên nội bộ",
-            dept: "Phòng Ban",
-            avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${partner}`,
-            status: "offline",
-            statusText: "Ngoại tuyến",
+            name: (partnerAcc ? partnerAcc.fullName : (s === partner ? m.senderName : null)) || partner,
+            title: (partnerAcc ? partnerAcc.role : "Thành viên nội bộ"),
+            dept: (partnerAcc ? partnerAcc.dept : "Phòng Ban"),
+            avatar: (partnerAcc ? partnerAcc.avatar : `https://api.dicebear.com/7.x/bottts/svg?seed=${partner}`),
+            status: (partnerAcc && partnerAcc.isOnline) ? "online" : "offline",
+            statusText: (partnerAcc && partnerAcc.isOnline) ? "Đang trực tuyến" : "Ngoại tuyến",
             empId: "NV-" + partner.toUpperCase(),
             email: partner + "@chatexcel.lan",
-            ipAddress: "10.10.0.xxx",
+            ipAddress: "Mạng LAN",
             loginTime: "Hôm nay",
             device: "Web Browser",
             unreadCount: 0,
@@ -326,14 +328,14 @@ function hydrateMessagesIntoConversations(msgs) {
 
     if (!targetConv) return;
 
-    const isMe = (m.senderUsername && m.senderUsername.toLowerCase().trim() === myUsername) || (m.sender === 'me');
+    const isMe = Boolean(m.senderUsername && m.senderUsername.toLowerCase().trim() === myUsername);
     let senderType = isMe ? 'me' : 'them';
     if (m.type === 'system') senderType = 'system';
 
     const formattedMsg = {
       id: m.id || ('msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)),
       sender: senderType,
-      senderName: m.senderName || (isMe ? currentUser.fullName : (targetConv.name || '')),
+      senderName: isMe ? currentUser.fullName : (m.senderName || targetConv.name || targetConv.username),
       senderUsername: m.senderUsername || (isMe ? currentUser.username : targetConv.username),
       type: m.type || 'text',
       text: m.text || '',
@@ -1087,7 +1089,7 @@ function sendMessage() {
   const payloadMsg = {
     ...newMsg,
     targetId: currentUserId,
-    targetUsername: user.username || "",
+    targetUsername: user.username || (currentUserId ? currentUserId.replace(/^u_/, '') : ""),
     isGroup: !!user.isGroup
   };
   saveLocalMessage(payloadMsg);
@@ -2370,25 +2372,38 @@ function initRealtimeSSE() {
         // 1. Nhận tin nhắn mới
         if (type === "new_message") {
           const msg = data;
-          if (msg.senderUsername === currentUser.username) return; // Bỏ qua tin chính mình đã thêm vào giao diện
+          if (!msg || !currentUser) return;
+
+          const myUser = (currentUser.username || '').toLowerCase().trim();
+          const senderUser = (msg.senderUsername || '').toLowerCase().trim();
+          const targetUser = (msg.targetUsername || (msg.targetId ? msg.targetId.replace(/^u_/, '') : '') || '').toLowerCase().trim();
+
+          // Nếu là tin nhắn cá nhân 1-1: chỉ nhận nếu gửi tới mình hoặc do chính mình gửi
+          if (!msg.isGroup) {
+            if (targetUser !== myUser && senderUser !== myUser) {
+              return; // Bỏ qua tin nhắn không thuộc về tài khoản này
+            }
+          }
 
           let targetConversation = null;
           if (msg.isGroup) {
             targetConversation = internalUsers.find(u => u.isGroup);
           } else {
-            targetConversation = internalUsers.find(u => (u.username || '').toLowerCase() === (msg.senderUsername || '').toLowerCase());
-            if (!targetConversation && msg.senderUsername) {
+            const partnerUser = (senderUser === myUser) ? targetUser : senderUser;
+            targetConversation = internalUsers.find(u => (u.username || '').toLowerCase().trim() === partnerUser);
+            if (!targetConversation && partnerUser) {
+              const partnerAcc = allSystemUsers.find(a => (a.username || '').toLowerCase().trim() === partnerUser);
               targetConversation = {
-                id: "u_" + msg.senderUsername,
-                username: msg.senderUsername,
-                name: msg.senderName || msg.senderUsername,
-                title: "Thành viên nội bộ",
-                dept: "Phòng Ban",
-                avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${msg.senderUsername}`,
-                status: "online",
-                statusText: "Đang trực tuyến",
-                empId: "NV-" + msg.senderUsername.toUpperCase(),
-                email: msg.senderUsername + "@chatexcel.lan",
+                id: "u_" + partnerUser,
+                username: partnerUser,
+                name: (partnerAcc ? partnerAcc.fullName : (senderUser === partnerUser ? msg.senderName : partnerUser)),
+                title: (partnerAcc ? partnerAcc.role : "Thành viên nội bộ"),
+                dept: (partnerAcc ? partnerAcc.dept : "Phòng Ban"),
+                avatar: (partnerAcc ? partnerAcc.avatar : `https://api.dicebear.com/7.x/bottts/svg?seed=${partnerUser}`),
+                status: (partnerAcc && partnerAcc.isOnline) ? "online" : "offline",
+                statusText: (partnerAcc && partnerAcc.isOnline) ? "Đang trực tuyến" : "Ngoại tuyến",
+                empId: "NV-" + partnerUser.toUpperCase(),
+                email: partnerUser + "@chatexcel.lan",
                 ipAddress: "Mạng LAN",
                 loginTime: "Hôm nay",
                 device: "Web Browser",
@@ -2406,10 +2421,11 @@ function initRealtimeSSE() {
           if (targetConversation) {
             // Tránh trùng tin nhắn
             if (!targetConversation.messages.some(m => m.id === msg.id)) {
+              const isMe = (senderUser === myUser);
               const newReceivedMsg = {
                 id: msg.id || ('msg_' + Date.now()),
-                sender: msg.type === "system" ? "system" : "them",
-                senderName: msg.senderName,
+                sender: isMe ? 'me' : (msg.type === "system" ? "system" : "them"),
+                senderName: isMe ? currentUser.fullName : (msg.senderName || targetConversation.name || targetConversation.username),
                 senderUsername: msg.senderUsername,
                 type: msg.type || "text",
                 text: msg.text || "",
