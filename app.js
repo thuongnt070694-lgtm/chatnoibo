@@ -270,6 +270,11 @@ function hydrateMessagesIntoConversations(msgs) {
   if (!Array.isArray(msgs) || !currentUser) return;
   const myUsername = (currentUser.username || '').toLowerCase().trim();
 
+  const currentTotal = internalUsers.reduce((sum, u) => sum + (u.messages ? u.messages.length : 0), 0);
+  if (msgs.length === currentTotal && currentTotal > 0) {
+    return; // Tin nhắn không thay đổi, tránh giật màn hình
+  }
+
   // Reset mảng tin nhắn của từng hội thoại để nạp chính xác theo thời gian
   internalUsers.forEach(u => {
     u.messages = [];
@@ -471,8 +476,8 @@ function buildUserListFromAccounts(allAccounts, serverGroup) {
   // Bảo lưu tin nhắn nhóm nếu đã có từ trước
   const existingGroup = existingMap.get("grp_all");
 
-  // Cách 2: Chỉ người dùng đã được thêm vào nhóm mới thấy và truy cập được Nhóm Chat Chung
-  const isMember = groupInfo && Array.isArray(groupInfo.members) && groupInfo.members.includes(currentUser?.username);
+  // Nhóm Chat Chung Nội Bộ luôn khả dụng cho mọi thành viên
+  const isMember = true;
 
   internalUsers = [];
 
@@ -2336,11 +2341,29 @@ function initRealtimeSSE() {
     currentEventSource = null;
   }
 
+  // Polling dự phòng mỗi 3.5 giây để đảm bảo tin nhắn luôn luôn thông suốt ngay cả khi mạng chập chờn
+  if (!window._msgSyncPolling) {
+    window._msgSyncPolling = setInterval(() => {
+      if (currentUser && typeof loadMessagesHistory === "function") {
+        loadMessagesHistory();
+      }
+    }, 3500);
+  }
+
   try {
     currentEventSource = new EventSource(`/api/events?username=${encodeURIComponent(currentUser.username)}`);
 
+    currentEventSource.onerror = function() {
+      if (currentEventSource) {
+        try { currentEventSource.close(); } catch (e) {}
+        currentEventSource = null;
+      }
+      setTimeout(initRealtimeSSE, 3000);
+    };
+
     currentEventSource.onmessage = function(event) {
       try {
+        if (!event.data || event.data.trim().startsWith(':')) return; // Bỏ qua heartbeat ping
         const payload = JSON.parse(event.data);
         const { type, data } = payload;
 

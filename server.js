@@ -132,6 +132,15 @@ function getEnrichedGroupInfo() {
 // Lưu trữ các client SSE đang kết nối
 let clients = []; // Array of { id, username, res }
 
+// Gửi heartbeat định kỳ 15 giây để duy trì kết nối SSE trên Render / Nginx / Proxy không bị timeout
+setInterval(() => {
+  clients.forEach(c => {
+    try {
+      c.res.write(': ping\n\n');
+    } catch (e) {}
+  });
+}, 15000);
+
 // Khởi tạo cơ sở dữ liệu tin nhắn lâu dài
 const MESSAGES_DB_FILE = path.join(__dirname, 'messages_db.json');
 let messagesHistory = [];
@@ -792,18 +801,19 @@ const server = http.createServer(async (req, res) => {
       // Kiểm tra quyền gửi tin nhắn trong nhóm
       if (msgData.isGroup) {
         const sender = (msgData.senderUsername || '').toLowerCase();
-        // 0. Kiểm tra thành viên nhóm (Cách 2: chỉ thành viên trong nhóm mới được gửi và nhận)
-        if (!groupInfo.members || !groupInfo.members.includes(sender)) {
-          res.writeHead(403, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Bạn không phải là thành viên của nhóm này!' }));
-          return;
+        // Tự động đảm bảo người gửi là thành viên của nhóm chung
+        if (sender && !groupInfo.members.includes(sender)) {
+          groupInfo.members.push(sender);
+          saveGroupInfo();
         }
+
         // 1. Kiểm tra có bị cấm chat cá nhân không
         if (groupInfo.mutedUsers && groupInfo.mutedUsers.includes(sender)) {
           res.writeHead(403, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Bạn đã bị cấm chat trong nhóm này bởi Trưởng/Phó nhóm!' }));
           return;
         }
+
         // 2. Kiểm tra chế độ chỉ Trưởng & Phó nhóm được chat
         if (groupInfo.onlyAdminsCanChat) {
           const isLeader = (sender === groupInfo.leader);
@@ -818,17 +828,8 @@ const server = http.createServer(async (req, res) => {
 
       addMessage(msgData);
 
-      if (msgData.isGroup) {
-        // Chỉ gửi tin nhắn nhóm tới các thành viên thực sự của nhóm
-        const payload = `data: ${JSON.stringify({ type: 'new_message', data: msgData })}\n\n`;
-        clients.filter(c => groupInfo.members && groupInfo.members.includes(c.username)).forEach(c => {
-          try {
-            c.res.write(payload);
-          } catch (err) {}
-        });
-      } else {
-        broadcastEvent('new_message', msgData);
-      }
+      // Phát realtime tới TẤT CẢ client kết nối
+      broadcastEvent('new_message', msgData);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'ok' }));
