@@ -255,6 +255,17 @@ function clearLocalMessages(targetUsername, isGroup) {
   } catch (e) {}
 }
 
+function mergeMessages(listA, listB) {
+  const map = new Map();
+  (listA || []).forEach(m => {
+    if (m && m.id) map.set(m.id, m);
+  });
+  (listB || []).forEach(m => {
+    if (m && m.id) map.set(m.id, m);
+  });
+  return Array.from(map.values());
+}
+
 function hydrateMessagesIntoConversations(msgs) {
   if (!Array.isArray(msgs) || !currentUser) return;
   const myUsername = (currentUser.username || '').toLowerCase().trim();
@@ -281,6 +292,30 @@ function hydrateMessagesIntoConversations(msgs) {
 
       if (partner) {
         targetConv = internalUsers.find(u => (u.username || '').toLowerCase().trim() === partner);
+        if (!targetConv) {
+          targetConv = {
+            id: "u_" + partner,
+            username: partner,
+            name: (s === partner ? m.senderName : null) || partner,
+            title: "Thành viên nội bộ",
+            dept: "Phòng Ban",
+            avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${partner}`,
+            status: "offline",
+            statusText: "Ngoại tuyến",
+            empId: "NV-" + partner.toUpperCase(),
+            email: partner + "@chatexcel.lan",
+            ipAddress: "10.10.0.xxx",
+            loginTime: "Hôm nay",
+            device: "Web Browser",
+            unreadCount: 0,
+            isGroup: false,
+            messages: [],
+            sharedImages: [],
+            sharedFiles: [],
+            sharedLinks: []
+          };
+          internalUsers.push(targetConv);
+        }
       }
     }
 
@@ -353,15 +388,16 @@ function hydrateMessagesIntoConversations(msgs) {
 async function loadMessagesHistory() {
   if (!currentUser) return;
   const cacheKey = getMsgCacheKey();
+  let localMsgs = [];
 
   // 1. Tải ngay từ LocalStorage để người dùng thấy tin nhắn ngay lập tức (0ms)
   if (cacheKey) {
     try {
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          hydrateMessagesIntoConversations(parsed);
+        localMsgs = JSON.parse(cached);
+        if (Array.isArray(localMsgs) && localMsgs.length > 0) {
+          hydrateMessagesIntoConversations(localMsgs);
         }
       }
     } catch (e) {}
@@ -372,14 +408,27 @@ async function loadMessagesHistory() {
     const res = await fetch(`/api/messages?username=${encodeURIComponent(currentUser.username)}`);
     if (res.ok) {
       const data = await res.json();
-      const msgs = data.messages || [];
+      const serverMsgs = Array.isArray(data.messages) ? data.messages : [];
+      
+      // Hợp nhất cả hai nguồn: không bao giờ để tin nhắn bị mất khi server trống
+      const merged = mergeMessages(localMsgs, serverMsgs);
       if (cacheKey) {
-        localStorage.setItem(cacheKey, JSON.stringify(msgs));
+        localStorage.setItem(cacheKey, JSON.stringify(merged));
       }
-      hydrateMessagesIntoConversations(msgs);
+      hydrateMessagesIntoConversations(merged);
+
+      // Nếu client có tin nhắn mà server chưa có (ví dụ server vừa khởi động lại), đồng bộ ngược lên server
+      const missingOnServer = (localMsgs || []).filter(lm => !serverMsgs.some(sm => sm.id === lm.id));
+      if (missingOnServer.length > 0) {
+        fetch("/api/messages/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: missingOnServer })
+        }).catch(() => {});
+      }
     }
   } catch (err) {
-    console.warn("Chưa thể đồng bộ tin nhắn từ máy chủ:", err);
+    console.warn("Chưa thể đồng bộ tin nhắn từ máy chủ, vẫn dùng tin nhắn đã lưu trên máy:", err);
   }
 }
 
@@ -478,22 +527,13 @@ function buildUserListFromAccounts(allAccounts, serverGroup) {
   });
 
   renderUserList();
-  if (!currentUserId && internalUsers.length > 0) {
-    selectUser(internalUsers[0].id);
-  } else if (currentUserId) {
-    const activeUser = internalUsers.find(u => u.id === currentUserId);
-    if (activeUser) {
-      renderMiddleChatHeader(activeUser);
-      renderRightPanelDetails(activeUser);
-      if (activeUser.isGroup) {
-        renderGroupMembers();
-        renderGroupAdminControls();
-        checkGroupChatLockStatus();
-      }
-    } else if (internalUsers.length > 0) {
-      // Nếu phòng chat trước đó không còn (ví dụ vừa bị gỡ khỏi nhóm), chuyển sang người đầu tiên
-      selectUser(internalUsers[0].id);
-    }
+  const savedActiveConv = localStorage.getItem("chatexcel_last_active_conv");
+  const targetId = (savedActiveConv && internalUsers.some(u => u.id === savedActiveConv))
+    ? savedActiveConv
+    : (currentUserId && internalUsers.some(u => u.id === currentUserId) ? currentUserId : (internalUsers.length > 0 ? internalUsers[0].id : null));
+
+  if (targetId) {
+    selectUser(targetId);
   }
 }
 
@@ -604,6 +644,9 @@ function selectUser(userId) {
 
   currentUserId = userId;
   user.unreadCount = 0;
+  try {
+    localStorage.setItem("chatexcel_last_active_conv", userId);
+  } catch (e) {}
 
   document.querySelectorAll(".user-item-card").forEach(el => {
     el.classList.toggle("active", el.getAttribute("data-id") === userId);
@@ -2311,6 +2354,30 @@ function initRealtimeSSE() {
             targetConversation = internalUsers.find(u => u.isGroup);
           } else {
             targetConversation = internalUsers.find(u => (u.username || '').toLowerCase() === (msg.senderUsername || '').toLowerCase());
+            if (!targetConversation && msg.senderUsername) {
+              targetConversation = {
+                id: "u_" + msg.senderUsername,
+                username: msg.senderUsername,
+                name: msg.senderName || msg.senderUsername,
+                title: "Thành viên nội bộ",
+                dept: "Phòng Ban",
+                avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${msg.senderUsername}`,
+                status: "online",
+                statusText: "Đang trực tuyến",
+                empId: "NV-" + msg.senderUsername.toUpperCase(),
+                email: msg.senderUsername + "@chatexcel.lan",
+                ipAddress: "Mạng LAN",
+                loginTime: "Hôm nay",
+                device: "Web Browser",
+                unreadCount: 0,
+                isGroup: false,
+                messages: [],
+                sharedImages: [],
+                sharedFiles: [],
+                sharedLinks: []
+              };
+              internalUsers.push(targetConversation);
+            }
           }
 
           if (targetConversation) {
@@ -2334,13 +2401,8 @@ function initRealtimeSSE() {
               };
               targetConversation.messages.push(newReceivedMsg);
 
-              // Lưu vào bộ nhớ cục bộ
-              saveLocalMessage({
-                ...msg,
-                targetId: targetConversation.id,
-                targetUsername: targetConversation.username || "",
-                isGroup: !!targetConversation.isGroup
-              });
+              // Lưu vào bộ nhớ cục bộ nguyên vẹn không làm sai lệch người nhận
+              saveLocalMessage(msg);
 
               if (msg.type === "image" && msg.imageUrl) {
                 targetConversation.sharedImages.unshift({

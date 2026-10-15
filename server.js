@@ -59,9 +59,15 @@ try {
   console.error("Lỗi đọc group_db.json:", e);
 }
 
-// Đảm bảo cấu trúc các trường hợp lệ
+// Đảm bảo cấu trúc các trường hợp lệ và tất cả tài khoản đều là thành viên nhóm chung
 if (!Array.isArray(groupInfo.members)) {
   groupInfo.members = accounts.map(a => a.username);
+} else {
+  accounts.forEach(a => {
+    if (a.username && !groupInfo.members.includes(a.username)) {
+      groupInfo.members.push(a.username);
+    }
+  });
 }
 if (!groupInfo.leader && accounts.length > 0) {
   groupInfo.leader = accounts[0].username;
@@ -69,6 +75,7 @@ if (!groupInfo.leader && accounts.length > 0) {
 if (!Array.isArray(groupInfo.deputies)) groupInfo.deputies = [];
 if (!Array.isArray(groupInfo.mutedUsers)) groupInfo.mutedUsers = [];
 if (typeof groupInfo.onlyAdminsCanChat !== 'boolean') groupInfo.onlyAdminsCanChat = false;
+saveGroupInfo();
 
 function saveGroupInfo() {
   try {
@@ -284,6 +291,11 @@ const server = http.createServer(async (req, res) => {
 
       accounts.push(newAccount);
       saveAccounts();
+
+      if (!groupInfo.members.includes(newAccount.username)) {
+        groupInfo.members.push(newAccount.username);
+        saveGroupInfo();
+      }
 
       broadcastEvent('new_user_registered', {
         username: newAccount.username,
@@ -830,11 +842,10 @@ const server = http.createServer(async (req, res) => {
   // 6.1 LẤY TOÀN BỘ LỊCH SỬ TIN NHẮN (THEO USERNAME)
   if (pathname === '/api/messages' && req.method === 'GET') {
     const username = (url.searchParams.get('username') || '').toLowerCase().trim();
-    const isMemberOfGroup = groupInfo.members && groupInfo.members.includes(username);
 
     const userMessages = messagesHistory.filter(m => {
       if (m.isGroup) {
-        return isMemberOfGroup;
+        return true; // Tin nhắn nhóm chung nội bộ luôn hiển thị cho tất cả thành viên nội bộ
       }
       const s = (m.senderUsername || '').toLowerCase().trim();
       const t = (m.targetUsername || '').toLowerCase().trim();
@@ -843,6 +854,33 @@ const server = http.createServer(async (req, res) => {
 
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ messages: userMessages }));
+    return;
+  }
+
+  // 6.1.1 ĐỒNG BỘ TIN NHẮN TỪ CLIENT (PHÒNG TRƯỜNG HỢP SERVER RESTART)
+  if (pathname === '/api/messages/sync' && req.method === 'POST') {
+    try {
+      const data = await parseJsonBody(req);
+      const incomingMsgs = Array.isArray(data.messages) ? data.messages : [];
+      let addedCount = 0;
+      incomingMsgs.forEach(m => {
+        if (m && m.id && !messagesHistory.some(existing => existing.id === m.id)) {
+          messagesHistory.push(m);
+          addedCount++;
+        }
+      });
+      if (addedCount > 0) {
+        if (messagesHistory.length > 5000) {
+          messagesHistory = messagesHistory.slice(-5000);
+        }
+        saveMessages();
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', addedCount }));
+    } catch (e) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Lỗi đồng bộ' }));
+    }
     return;
   }
 
@@ -941,7 +979,12 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('404 Not Found');
     } else {
-      res.writeHead(200, { 'Content-Type': contentTypes[ext] || 'application/octet-stream' });
+      res.writeHead(200, {
+        'Content-Type': contentTypes[ext] || 'application/octet-stream',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      });
       res.end(content);
     }
   });
