@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hệ Thống Chat Nội Bộ - Enterprise Internal Chat</title>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Font Awesome CDN for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-light">
+  <div class="chat-app-container">
+    
+    <!-- ==============================================
+         1. CỘT TRÁI: THÔNG TIN NGƯỜI TRUY CẬP & DANH BẠ
+         ============================================== -->
+    <aside class="panel-left" id="panelLeft">
+      <!-- Header thông tin người dùng hiện tại -->
+      <div class="user-my-profile">
+        <div class="my-avatar-wrapper" id="myAvatarWrapper" title="Bấm để đổi avatar và thông tin">
+          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" alt="Avatar cá nhân" class="avatar-img" id="myAvatar">
+          <span class="status-indicator status-online" title="Đang trực tuyến"></span>
+        </div>
+        <div class="my-info">
+          <h3 class="my-name" id="myName">Nguyễn Thanh Thưởng</h3>
+          <p class="my-role" id="myRole"><i class="fa-solid fa-id-badge"></i> Ba Em Bé Bí</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn-icon" id="themeToggleBtn" title="Chuyển chế độ Sáng / Tối">
+            <i class="fa-solid fa-moon"></i>
+          </button>
+          <button class="btn-icon" id="settingsBtn" title="Cài đặt tài khoản (Đổi tên, đổi avatar, mật khẩu)">
+            <i class="fa-solid fa-gear"></i>
+          </button>
+          <button class="btn-icon" id="btnLogout" title="Đăng xuất tài khoản">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Thống kê nhanh người truy cập nội bộ -->
+      <div class="live-stats-bar">
+        <div class="stat-pill online-pill">
+          <span class="dot-pulse"></span>
+          <span>Online: <strong id="onlineCount">0</strong></span>
+        </div>
+        <div class="stat-pill total-pill">
+          <i class="fa-solid fa-network-wired"></i>
+          <span>Tổng kết nối: <strong id="totalCount">0</strong></span>
+        </div>
+      </div>
+
+      <!-- Nút tạo cuộc trò chuyện mới & Ô tìm kiếm -->
+      <div class="search-box-wrapper">
+        <button class="btn-new-chat" id="btnOpenNewChat" title="Tạo cuộc trò chuyện hoặc nhóm mới">
+          <i class="fa-solid fa-plus"></i> Cuộc trò chuyện mới
+        </button>
+        <div class="search-input-group" style="margin-top: 8px;">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input type="text" id="searchInput" placeholder="Tìm theo tên, phòng ban...">
+          <button class="clear-search-btn" id="clearSearchBtn" style="display: none;">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Bộ lọc phân loại -->
+      <div class="filter-tabs">
+        <button class="filter-btn active" data-filter="all">Tất cả (<span id="countAll">8</span>)</button>
+        <button class="filter-btn" data-filter="online">Đang online (<span id="countOnlineTab">5</span>)</button>
+        <button class="filter-btn" data-filter="groups">Nhóm (<span id="countGroups">2</span>)</button>
+      </div>
+
+      <!-- Danh sách người truy cập & cuộc trò chuyện -->
+      <div class="user-list-wrapper custom-scrollbar" id="userListContainer">
+        <!-- Danh sách được render động qua JavaScript -->
+      </div>
+
+      <!-- Footer chân trang cột trái -->
+      <div class="panel-left-footer">
+        <div class="network-status">
+          <i class="fa-solid fa-shield-halved text-success"></i>
+          <span>Mạng nội bộ an toàn (LAN 192.168.1.x)</span>
+        </div>
+      </div>
+    </aside>
+
+
+    <!-- ==============================================
+         2. CỘT GIỮA: NỘI DUNG CUỘC TRÒ CHUYỆN CHÍNH
+         ============================================== -->
+    <main class="panel-middle" id="panelMiddle">
+      <!-- Header cuộc trò chuyện đang mở -->
+      <header class="chat-header">
+        <div class="chat-recipient-info">
+          <button class="btn-icon mobile-menu-btn" id="btnToggleLeftMenu" title="Mở danh sách">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <div class="recipient-avatar-wrapper">
+            <img src="" alt="Avatar" class="avatar-img" id="currentChatAvatar">
+            <span class="status-indicator" id="currentChatStatusDot"></span>
+          </div>
+          <div class="recipient-details">
+            <div class="name-badge-row">
+              <h2 class="recipient-name" id="currentChatName">Đang tải...</h2>
+              <span class="dept-badge" id="currentChatDept">Phòng Ban</span>
+            </div>
+            <p class="recipient-status-text" id="currentChatStatusText">
+              <i class="fa-solid fa-circle-dot"></i> Đang trực tuyến • Truy cập từ Chrome / Windows
+            </p>
+          </div>
+        </div>
+
+        <!-- Các nút công cụ trên header chat -->
+        <div class="chat-header-actions">
+          <button class="btn-icon" id="btnVoiceCall" title="Gọi thoại nội bộ">
+            <i class="fa-solid fa-phone"></i>
+          </button>
+          <button class="btn-icon" id="btnVideoCall" title="Gọi video nội bộ">
+            <i class="fa-solid fa-video"></i>
+          </button>
+          <button class="btn-icon" id="btnSearchChat" title="Tìm trong cuộc trò chuyện">
+            <i class="fa-solid fa-magnifying-glass"></i>
+          </button>
+          <button class="btn-icon active-toggle" id="btnToggleRightPanel" title="Bật/Tắt thông tin tệp & ảnh">
+            <i class="fa-solid fa-sidebar fa-table-columns"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- Thanh thông báo ghim (Pinned Banner) -->
+      <div class="pinned-message-bar" id="pinnedBanner">
+        <div class="pin-icon"><i class="fa-solid fa-thumbtack"></i></div>
+        <div class="pin-content">
+          <strong>Thông báo ghim:</strong> <span id="pinnedText">Tài liệu dự án ChatExcel Q4/2026 đã được cập nhật ở mục Tệp tin. Vui lòng kiểm tra và duyệt trước 17h.</span>
+        </div>
+        <button class="btn-close-pin" id="btnClosePin" title="Bỏ ghim"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Khung hiển thị nội dung tin nhắn -->
+      <div class="chat-messages-area custom-scrollbar" id="messagesArea">
+        <!-- Tin nhắn được hiển thị linh hoạt qua JavaScript -->
+      </div>
+
+      <!-- Trạng thái người khác đang soạn tin (Typing Indicator) -->
+      <div class="typing-indicator-bar" id="typingIndicator" style="display: none;">
+        <span class="typing-dots">
+          <span></span><span></span><span></span>
+        </span>
+        <span class="typing-text" id="typingText">Đang soạn tin...</span>
+      </div>
+
+      <!-- Xem trước tệp đính kèm trước khi gửi -->
+      <div class="attachment-preview-bar" id="attachmentPreviewBar" style="display: none;">
+        <div class="preview-item" id="previewItem">
+          <div class="preview-thumb" id="previewThumb"></div>
+          <div class="preview-info">
+            <span class="preview-filename" id="previewFilename">file_demo.png</span>
+            <span class="preview-filesize" id="previewFilesize">2.4 MB</span>
+          </div>
+          <button class="btn-remove-attachment" id="btnRemoveAttachment" title="Hủy tệp">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Thanh cảnh báo cấm chat hoặc chỉ Trưởng/Phó nhóm chat -->
+      <div class="chat-locked-banner" id="chatLockedBanner" style="display: none;">
+        <i class="fa-solid fa-lock" id="chatLockedIcon"></i>
+        <span id="chatLockedText">Chỉ Trưởng nhóm và Phó nhóm mới có thể gửi tin nhắn lúc này.</span>
+      </div>
+
+      <!-- Khung nhập và gửi tin nhắn -->
+      <footer class="chat-input-bar">
+        <div class="input-actions-left">
+          <!-- Đính kèm ảnh/tệp qua input file ẩn -->
+          <input type="file" id="fileInput" style="display: none;" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt">
+          <button class="btn-icon" id="btnAttachFile" title="Đính kèm tệp / ảnh">
+            <i class="fa-solid fa-paperclip"></i>
+          </button>
+          <button class="btn-icon" id="btnAttachImage" title="Gửi hình ảnh nhanh">
+            <i class="fa-regular fa-image"></i>
+          </button>
+          <button class="btn-icon" id="btnEmoji" title="Chọn biểu cảm Emoji">
+            <i class="fa-regular fa-face-smile"></i>
+          </button>
+        </div>
+
+        <!-- Khay chọn emoji mini -->
+        <div class="emoji-picker-popup" id="emojiPicker" style="display: none;">
+          <span class="emoji-item">👍</span>
+          <span class="emoji-item">❤️</span>
+          <span class="emoji-item">😊</span>
+          <span class="emoji-item">🎉</span>
+          <span class="emoji-item">🔥</span>
+          <span class="emoji-item">✅</span>
+          <span class="emoji-item">🤝</span>
+          <span class="emoji-item">💼</span>
+          <span class="emoji-item">📊</span>
+          <span class="emoji-item">🚀</span>
+          <span class="emoji-item">🙏</span>
+          <span class="emoji-item">👏</span>
+        </div>
+
+        <div class="message-input-wrapper">
+          <textarea id="messageInput" placeholder="Nhập tin nhắn nội bộ... (Nhấn Enter để gửi, Shift+Enter xuống dòng)" rows="1"></textarea>
+        </div>
+
+        <div class="input-actions-right">
+          <button class="btn-icon" id="btnVoiceMsg" title="Ghi âm thoại">
+            <i class="fa-solid fa-microphone"></i>
+          </button>
+          <button class="btn-send" id="btnSendMessage" title="Gửi tin nhắn">
+            <i class="fa-solid fa-paper-plane"></i>
+          </button>
+        </div>
+      </footer>
+    </main>
+
+
+    <!-- ==============================================
+         3. CỘT PHẢI: THÔNG TIN CUỘC TRÒ CHUYỆN, TỆP & ẢNH
+         ============================================== -->
+    <aside class="panel-right custom-scrollbar" id="panelRight">
+      <!-- Header cột phải -->
+      <div class="panel-right-header">
+        <h3 class="panel-title">Thông Tin Hội Thoại</h3>
+        <button class="btn-icon" id="btnCloseRightPanel" title="Đóng bảng thông tin">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Thẻ thông tin cá nhân/nhóm đối phương -->
+      <div class="recipient-profile-card">
+        <div class="card-avatar-wrapper" id="cardAvatarWrapper">
+          <img src="" alt="Profile" class="profile-card-img" id="rightProfileAvatar">
+          <span class="status-indicator status-online" id="rightProfileStatusDot"></span>
+          <button class="avatar-edit-badge" id="btnGroupAvatarBadge" title="Đổi ảnh đại diện nhóm" style="display: none;">
+            <i class="fa-solid fa-camera"></i>
+          </button>
+        </div>
+        <!-- Input file ẩn để đổi ảnh đại diện nhóm -->
+        <input type="file" id="groupAvatarFileInput" accept="image/*" style="display: none;">
+
+        <h3 class="profile-card-name" id="rightProfileName">Trần Thu Trang</h3>
+        <p class="profile-card-title" id="rightProfileTitle">Kế Toán Trưởng</p>
+        <span class="profile-card-dept" id="rightProfileDept">Phòng Kế Toán - Tài Chính</span>
+
+        <div class="profile-quick-actions" id="rightProfileQuickActions">
+          <button class="quick-act-btn" id="btnQuickCall" title="Gọi thoại"><i class="fa-solid fa-phone"></i> Gọi</button>
+          <button class="quick-act-btn" id="btnQuickMail" title="Gửi email"><i class="fa-solid fa-envelope"></i> Email</button>
+          <button class="quick-act-btn" id="btnQuickGroupAvatar" title="Đổi ảnh đại diện nhóm" style="display: none;"><i class="fa-solid fa-camera"></i> Đổi ảnh</button>
+          <button class="quick-act-btn" id="btnQuickMute" title="Tắt thông báo"><i class="fa-solid fa-bell-slash"></i> Tắt chuông</button>
+        </div>
+      </div>
+
+      <!-- ==============================================
+           KHỐI DANH SÁCH THÀNH VIÊN NHÓM (KHI CHỌN NHÓM)
+           ============================================== -->
+      <div class="group-members-section" id="groupMembersSection" style="display: none;">
+        <div class="section-title-row">
+          <div class="section-title">
+            <i class="fa-solid fa-users"></i>
+            <span>Thành viên (<span id="groupMemberCount">0</span>)</span>
+          </div>
+          <button class="btn-add-member" id="btnAddGroupMember" title="Thêm thành viên vào nhóm">
+            <i class="fa-solid fa-user-plus"></i> Thêm
+          </button>
+        </div>
+        <div class="group-members-list custom-scrollbar" id="groupMembersList">
+          <!-- Render danh sách thành viên động -->
+        </div>
+      </div>
+
+      <!-- ==============================================
+           KHỐI CÀI ĐẶT & PHÂN QUYỀN NHÓM (TRƯỞNG & PHÓ)
+           ============================================== -->
+      <div class="group-admin-section" id="groupAdminSection" style="display: none;">
+        <div class="section-title">
+          <i class="fa-solid fa-shield-halved"></i>
+          <span>Cài Đặt & Quyền Hạn Nhóm</span>
+        </div>
+        <div class="admin-controls-card">
+          <div class="admin-control-item">
+            <div class="control-label-group">
+              <span class="control-title"><i class="fa-solid fa-lock"></i> Chỉ Trưởng/Phó nhóm chat</span>
+              <span class="control-sub">Chặn thành viên thường gửi tin</span>
+            </div>
+            <label class="toggle-switch" title="Bật/Tắt chế độ chỉ Trưởng/Phó nhóm nhắn tin">
+              <input type="checkbox" id="switchOnlyAdminsChat">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="admin-action-buttons">
+            <button class="btn-group-action" id="btnRenameGroupAction" title="Đổi tên nhóm">
+              <i class="fa-solid fa-pen-to-square"></i> Đổi tên nhóm
+            </button>
+            <button class="btn-group-action" id="btnChangeAvatarGroupAction" title="Đổi ảnh đại diện nhóm">
+              <i class="fa-solid fa-camera"></i> Đổi ảnh nhóm
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Khối chi tiết thông tin truy cập mạng nội bộ (Khi chat cá nhân 1-1) -->
+      <div class="info-accordion-section" id="infoAccordionSection">
+        <div class="section-title">
+          <i class="fa-solid fa-circle-info"></i>
+          <span>Thông Tin Truy Cập</span>
+        </div>
+        <div class="access-info-grid">
+          <div class="access-item">
+            <span class="label">Mã nhân viên:</span>
+            <span class="value" id="infoEmpId">NV-8842</span>
+          </div>
+          <div class="access-item">
+            <span class="label">Email nội bộ:</span>
+            <span class="value" id="infoEmail">thutrang@chatexcel.lan</span>
+          </div>
+          <div class="access-item">
+            <span class="label">IP Máy trạm:</span>
+            <span class="value" id="infoIpAddress">192.168.1.145</span>
+          </div>
+          <div class="access-item">
+            <span class="label">Thời gian đăng nhập:</span>
+            <span class="value" id="infoLoginTime">08:15 Hôm nay</span>
+          </div>
+          <div class="access-item">
+            <span class="label">Thiết bị:</span>
+            <span class="value" id="infoDevice">Windows 11 (Chrome 128)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Menu Tabs: Ảnh, Tệp tin, Liên kết -->
+      <div class="media-tabs-header">
+        <button class="media-tab-btn active" data-tab="images">
+          <i class="fa-regular fa-image"></i> Hình ảnh (<span id="countImages">4</span>)
+        </button>
+        <button class="media-tab-btn" data-tab="files">
+          <i class="fa-regular fa-file-lines"></i> Tệp tin (<span id="countFiles">3</span>)
+        </button>
+        <button class="media-tab-btn" data-tab="links">
+          <i class="fa-solid fa-link"></i> Liên kết (<span id="countLinks">2</span>)
+        </button>
+      </div>
+
+      <!-- Nội dung tab Ảnh & Video -->
+      <div class="tab-content-area" id="tabContentImages">
+        <div class="media-grid" id="sharedImagesGrid">
+          <!-- Render danh sách ảnh đã chia sẻ -->
+        </div>
+      </div>
+
+      <!-- Nội dung tab Tệp tin đã chia sẻ -->
+      <div class="tab-content-area" id="tabContentFiles" style="display: none;">
+        <div class="shared-files-list" id="sharedFilesList">
+          <!-- Render danh sách file Excel, PDF, Word, Zip -->
+        </div>
+      </div>
+
+      <!-- Nội dung tab Liên kết đã chia sẻ -->
+      <div class="tab-content-area" id="tabContentLinks" style="display: none;">
+        <div class="shared-links-list" id="sharedLinksList">
+          <!-- Render danh sách liên kết đã chia sẻ -->
+        </div>
+      </div>
+
+      <!-- Các tùy chọn cài đặt cuộc trò chuyện -->
+      <div class="chat-options-section">
+        <div class="section-title">
+          <i class="fa-solid fa-sliders"></i>
+          <span>Tùy Chọn & Bảo Mật</span>
+        </div>
+        <ul class="options-list">
+          <li class="option-item" id="optSearchInChat">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <span>Tìm kiếm trong cuộc trò chuyện</span>
+          </li>
+          <li class="option-item" id="optPinChat">
+            <i class="fa-solid fa-thumbtack"></i>
+            <span>Ghim cuộc trò chuyện này lên đầu</span>
+          </li>
+          <li class="option-item" id="optExportHistory">
+            <i class="fa-solid fa-file-export"></i>
+            <span>Xuất lịch sử chat (.JSON / .TXT)</span>
+          </li>
+          <li class="option-item danger" id="optClearChat">
+            <i class="fa-regular fa-trash-can"></i>
+            <span>Xóa lịch sử tin nhắn</span>
+          </li>
+        </ul>
+      </div>
+
+    </aside>
+
+  </div>
+
+  <!-- ==============================================
+       MODAL XEM ẢNH PHÓNG TO (IMAGE LIGHTBOX)
+       ============================================== -->
+  <div class="lightbox-modal" id="lightboxModal" style="display: none;">
+    <div class="lightbox-overlay" id="lightboxOverlay"></div>
+    <div class="lightbox-content">
+      <button class="lightbox-close-btn" id="lightboxCloseBtn"><i class="fa-solid fa-xmark"></i></button>
+      <img src="" alt="Ảnh phóng to" id="lightboxImg">
+      <div class="lightbox-caption" id="lightboxCaption">Ảnh đính kèm</div>
+      <a href="#" class="lightbox-download-btn" id="lightboxDownloadBtn" download target="_blank">
+        <i class="fa-solid fa-download"></i> Tải về máy
+      </a>
+    </div>
+  </div>
+
+  <!-- ==============================================
+       MODAL CÀI ĐẶT QUẢN TRỊ VIÊN (ĐỔI TÊN & AVATAR)
+       ============================================== -->
+  <div class="custom-modal-backdrop" id="adminSettingsModal" style="display: none;">
+    <div class="custom-modal-dialog">
+      <div class="custom-modal-header">
+        <h3 class="custom-modal-title"><i class="fa-solid fa-user-gear"></i> Cài Đặt Hồ Sơ Quản Trị Viên</h3>
+        <button class="btn-close-modal" id="btnCloseSettingsModal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="custom-modal-body">
+        <!-- Chỉnh sửa Avatar -->
+        <div class="avatar-edit-container">
+          <div class="avatar-preview-wrapper">
+            <img src="" alt="Avatar Quản trị viên" id="adminAvatarPreview" class="avatar-preview-img">
+            <label for="adminAvatarFileInput" class="avatar-upload-overlay" title="Tải ảnh mới từ máy tính">
+              <i class="fa-solid fa-camera"></i>
+            </label>
+            <input type="file" id="adminAvatarFileInput" accept="image/*" style="display: none;">
+          </div>
+          <div class="avatar-edit-info">
+            <span class="avatar-hint-title">Ảnh đại diện của bạn</span>
+            <span class="avatar-hint-sub">Bấm vào biểu tượng máy ảnh để tải ảnh từ máy tính (PNG, JPG, WebP)</span>
+          </div>
+        </div>
+
+        <!-- Chỉnh sửa Tên & Chức danh -->
+        <div class="form-group">
+          <label for="adminNameInput"><i class="fa-solid fa-user"></i> Họ và Tên hiển thị:</label>
+          <input type="text" id="adminNameInput" class="form-control" placeholder="Nhập họ tên của bạn...">
+        </div>
+
+        <div class="form-group">
+          <label for="adminRoleInput"><i class="fa-solid fa-id-badge"></i> Chức danh / Vai trò:</label>
+          <input type="text" id="adminRoleInput" class="form-control" placeholder="Ví dụ: Kỹ sư, Trưởng phòng...">
+        </div>
+
+        <div class="form-group">
+          <label for="adminPasswordInput"><i class="fa-solid fa-key"></i> Đổi mật khẩu mới (Bỏ trống nếu không đổi):</label>
+          <input type="password" id="adminPasswordInput" class="form-control" placeholder="Nhập mật khẩu mới...">
+        </div>
+      </div>
+      <div class="custom-modal-footer">
+        <button class="btn-modal-secondary" id="btnCancelSettings">Hủy</button>
+        <button class="btn-modal-primary" id="btnSaveSettings"><i class="fa-solid fa-check"></i> Lưu thay đổi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==============================================
+       MODAL ĐĂNG NHẬP / ĐĂNG KÝ (AUTH MODAL)
+       ============================================== -->
+  <div class="custom-modal-backdrop" id="authModal" style="display: none;">
+    <div class="custom-modal-dialog auth-dialog">
+      <div class="auth-header-tabs">
+        <button class="auth-tab-btn active" id="tabBtnLogin" type="button"><i class="fa-solid fa-right-to-bracket"></i> Đăng Nhập</button>
+        <button class="auth-tab-btn" id="tabBtnRegister" type="button"><i class="fa-solid fa-user-plus"></i> Đăng Ký Tài Khoản</button>
+      </div>
+
+      <!-- FORM ĐĂNG NHẬP -->
+      <form id="loginForm" class="auth-form-content">
+        <div class="auth-intro">
+          <h3>Đăng Nhập Chat Nội Bộ</h3>
+          <p>Nhập tên tài khoản và mật khẩu của bạn để truy cập</p>
+        </div>
+        <div class="form-group">
+          <label for="loginUsername"><i class="fa-solid fa-user"></i> Tên tài khoản:</label>
+          <input type="text" id="loginUsername" class="form-control" placeholder="Ví dụ: thuongnguyen" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="loginPassword"><i class="fa-solid fa-lock"></i> Mật khẩu:</label>
+          <input type="password" id="loginPassword" class="form-control" placeholder="Nhập mật khẩu..." required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn-auth-submit" id="btnSubmitLogin">
+          <i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng Nhập
+        </button>
+      </form>
+
+      <!-- FORM ĐĂNG KÝ -->
+      <form id="registerForm" class="auth-form-content" style="display: none;">
+        <div class="auth-intro">
+          <h3>Đăng Ký Tài Khoản Mới</h3>
+          <p>Tạo tài khoản để đồng nghiệp có thể tìm thấy và nhắn tin cho bạn</p>
+        </div>
+        <div class="form-group">
+          <label for="regUsername"><i class="fa-solid fa-at"></i> Tên tài khoản (để đăng nhập):</label>
+          <input type="text" id="regUsername" class="form-control" placeholder="Ví dụ: thuongnguyen" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="regFullName"><i class="fa-solid fa-signature"></i> Họ và Tên hiển thị:</label>
+          <input type="text" id="regFullName" class="form-control" placeholder="Ví dụ: Nguyễn Thanh Thưởng" required>
+        </div>
+        <div class="form-group">
+          <label for="regDept"><i class="fa-solid fa-building"></i> Phòng ban / Bộ phận:</label>
+          <input type="text" id="regDept" class="form-control" placeholder="Ví dụ: Phòng Kỹ Thuật, Kế Toán...">
+        </div>
+        <div class="form-group">
+          <label for="regPassword"><i class="fa-solid fa-lock"></i> Mật khẩu:</label>
+          <input type="password" id="regPassword" class="form-control" placeholder="Tạo mật khẩu..." required autocomplete="new-password">
+        </div>
+        <button type="submit" class="btn-auth-submit" id="btnSubmitRegister">
+          <i class="fa-solid fa-user-check"></i> Hoàn Tất Đăng Ký & Đăng Nhập
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==============================================
+       MODAL CUỘC GỌI THOẠI & VIDEO (CALL MODAL)
+       ============================================== -->
+  <div class="call-modal-backdrop" id="callModal" style="display: none;">
+    <div class="call-dialog">
+      <div class="call-header">
+        <div class="call-user-meta">
+          <h3 class="call-partner-name" id="callPartnerName">Đang gọi...</h3>
+          <span class="call-status-badge" id="callStatusBadge">Đang đổ chuông...</span>
+        </div>
+        <span class="call-timer" id="callTimer">00:00</span>
+      </div>
+
+      <!-- Khung Video / Avatar hiển thị -->
+      <div class="call-media-viewport" id="callMediaViewport">
+        <!-- Avatar đối phương (khi gọi thoại hoặc chưa có remote cam) -->
+        <div class="call-avatar-stage" id="callAvatarStage">
+          <img src="" alt="Avatar" id="callPartnerAvatar" class="call-stage-avatar">
+          <div class="call-pulse-ring"></div>
+        </div>
+
+        <!-- Khung Video người gọi (Local Camera thật) -->
+        <video id="callLocalVideo" autoplay muted playsinline class="call-local-video" style="display: none;"></video>
+
+        <!-- Sóng âm thanh khi đàm thoại -->
+        <div class="call-voice-waves" id="callVoiceWaves" style="display: none;">
+          <span class="voice-wave-bar"></span>
+          <span class="voice-wave-bar"></span>
+          <span class="voice-wave-bar"></span>
+          <span class="voice-wave-bar"></span>
+          <span class="voice-wave-bar"></span>
+        </div>
+      </div>
+
+      <!-- Thanh điều khiển cuộc gọi -->
+      <div class="call-controls-bar">
+        <button class="call-ctrl-btn" id="btnToggleCallMic" title="Bật/Tắt Micro">
+          <i class="fa-solid fa-microphone"></i>
+        </button>
+        <button class="call-ctrl-btn" id="btnToggleCallCam" title="Bật/Tắt Camera">
+          <i class="fa-solid fa-video"></i>
+        </button>
+        <button class="call-ctrl-btn btn-end-call" id="btnEndCall" title="Kết thúc cuộc gọi">
+          <i class="fa-solid fa-phone-slash"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==============================================
+       HỘP THOẠI CUỘC GỌI ĐẾN (INCOMING CALL ALERT)
+       ============================================== -->
+  <div class="incoming-call-alert" id="incomingCallAlert" style="display: none;">
+    <div class="incoming-avatar-wrap">
+      <img src="" alt="Người gọi" id="incomingAvatar" class="incoming-avatar-img">
+    </div>
+    <div class="incoming-info">
+      <strong id="incomingName">Đồng nghiệp</strong>
+      <span id="incomingType">Đang gọi video cho bạn...</span>
+    </div>
+    <div class="incoming-actions">
+      <button class="btn-call-act btn-call-accept" id="btnAcceptIncomingCall" title="Trả lời">
+        <i class="fa-solid fa-phone"></i>
+      </button>
+      <button class="btn-call-act btn-call-reject" id="btnRejectIncomingCall" title="Từ chối">
+        <i class="fa-solid fa-phone-slash"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==============================================
+       MODAL TẠO CUỘC TRÒ CHUYỆN / NHÓM MỚI
+       ============================================== -->
+  <div class="custom-modal-backdrop" id="newChatModal" style="display: none;">
+    <div class="custom-modal-dialog">
+      <div class="custom-modal-header">
+        <h3 class="custom-modal-title"><i class="fa-solid fa-comments"></i> Tạo Cuộc Trò Chuyện Mới</h3>
+        <button class="btn-close-modal" id="btnCloseNewChatModal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="custom-modal-body">
+        <div class="form-group">
+          <label for="newChatNameInput"><i class="fa-solid fa-signature"></i> Tên người nhận hoặc Tên nhóm:</label>
+          <input type="text" id="newChatNameInput" class="form-control" placeholder="Ví dụ: Hoàng Tuấn, Nhóm Kế Toán...">
+        </div>
+
+        <div class="form-group">
+          <label for="newChatDeptInput"><i class="fa-solid fa-briefcase"></i> Phòng ban / Chức vụ:</label>
+          <input type="text" id="newChatDeptInput" class="form-control" placeholder="Ví dụ: Phòng Kế Toán, Kỹ Thuật, Dự Án...">
+        </div>
+
+        <div class="form-group checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="newChatIsGroup">
+            <span>Đây là cuộc trò chuyện nhóm (Group Chat)</span>
+          </label>
+        </div>
+      </div>
+      <div class="custom-modal-footer">
+        <button class="btn-modal-secondary" id="btnCancelNewChat">Hủy</button>
+        <button class="btn-modal-primary" id="btnConfirmNewChat"><i class="fa-solid fa-plus"></i> Bắt đầu chat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==============================================
+       MODAL THÊM THÀNH VIÊN VÀO NHÓM
+       ============================================== -->
+  <div class="custom-modal-backdrop" id="addMemberModal" style="display: none;">
+    <div class="custom-modal-dialog">
+      <div class="custom-modal-header">
+        <h3 class="custom-modal-title"><i class="fa-solid fa-user-plus"></i> Thêm Thành Viên Vào Nhóm</h3>
+        <button class="btn-close-modal" id="btnCloseAddMemberModal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="custom-modal-body">
+        <div class="form-group">
+          <input type="text" id="searchAddMemberInput" class="form-control" placeholder="🔍 Tìm tên nhân viên hoặc username...">
+        </div>
+        <div class="add-members-scroll-list custom-scrollbar" id="addMemberList">
+          <!-- Render danh sách đồng nghiệp chưa có trong nhóm -->
+        </div>
+      </div>
+      <div class="custom-modal-footer">
+        <button class="btn-modal-secondary" id="btnCancelAddMember">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==============================================
+       MODAL ĐỔI TÊN NHÓM
+       ============================================== -->
+  <div class="custom-modal-backdrop" id="renameGroupModal" style="display: none;">
+    <div class="custom-modal-dialog" style="max-width: 420px;">
+      <div class="custom-modal-header">
+        <h3 class="custom-modal-title"><i class="fa-solid fa-pen-to-square"></i> Đổi Tên Nhóm Chat</h3>
+        <button class="btn-close-modal" id="btnCloseRenameGroupModal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="custom-modal-body">
+        <div class="form-group">
+          <label for="newGroupNameInput"><i class="fa-solid fa-users"></i> Tên nhóm mới:</label>
+          <input type="text" id="newGroupNameInput" class="form-control" placeholder="Nhập tên nhóm...">
+        </div>
+      </div>
+      <div class="custom-modal-footer">
+        <button class="btn-modal-secondary" id="btnCancelRenameGroup">Hủy</button>
+        <button class="btn-modal-primary" id="btnConfirmRenameGroup"><i class="fa-solid fa-check"></i> Lưu tên mới</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==============================================
+       MENU THAO TÁC THÀNH VIÊN NHÓM (POPOVER)
+       ============================================== -->
+  <div class="member-action-popover" id="memberActionPopover" style="display: none;">
+    <div class="popover-header">
+      <strong id="popoverMemberName">Tên thành viên</strong>
+      <span class="popover-role-tag" id="popoverMemberRole">Thành viên</span>
+    </div>
+    <div class="popover-divider"></div>
+    <div class="popover-actions-list">
+      <button class="popover-item" id="actTransferLeader">
+        <i class="fa-solid fa-crown text-warning"></i> <span>Chuyển quyền Trưởng nhóm</span>
+      </button>
+      <button class="popover-item" id="actToggleDeputy">
+        <i class="fa-solid fa-star text-info"></i> <span id="actDeputyText">Bổ nhiệm Phó nhóm</span>
+      </button>
+      <button class="popover-item" id="actToggleMute">
+        <i class="fa-solid fa-volume-xmark text-danger"></i> <span id="actMuteText">Cấm chat</span>
+      </button>
+      <button class="popover-item danger" id="actRemoveMember">
+        <i class="fa-solid fa-user-minus"></i> <span>Xóa khỏi nhóm</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div class="toast-notification" id="toastNotification" style="display: none;">
+    <i class="fa-solid fa-circle-check"></i>
+    <span id="toastMessage">Thông báo</span>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

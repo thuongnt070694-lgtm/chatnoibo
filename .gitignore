@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Environment & OS files
+.env
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE & Editor folders
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
