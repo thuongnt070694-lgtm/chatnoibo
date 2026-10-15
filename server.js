@@ -936,29 +936,44 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/call-signal' && req.method === 'POST') {
     try {
       const signalData = await parseJsonBody(req);
-      const targetUser = (signalData.to || '').toLowerCase().trim();
+      let targetUser = (signalData.to || '').toLowerCase().trim();
+      const fromUser = (signalData.from || '').toLowerCase().trim();
+
+      // Nếu targetUser là Họ Tên, tìm ra username chính xác
+      const matchedAcc = accounts.find(a => (a.username || '').toLowerCase() === targetUser || (a.fullName || '').toLowerCase() === targetUser);
+      if (matchedAcc) {
+        targetUser = matchedAcc.username.toLowerCase();
+      }
+
       const payload = `data: ${JSON.stringify({ type: 'call_signal', data: signalData })}\n\n`;
 
-      let sentDirectly = false;
+      let sentCount = 0;
       clients.forEach(c => {
         if (!c.res) return;
-        // Không gửi lại cho chính người gửi
-        if (c.username && c.username.toLowerCase() === (signalData.from || '').toLowerCase()) return;
+        const clientUser = (c.username || '').toLowerCase().trim();
+        if (clientUser && clientUser === fromUser) return; // Không gửi lại chính người gửi
 
-        // Ưu tiên gửi trực tiếp tới máy đích danh nếu match username
-        if (targetUser && c.username && c.username.toLowerCase() === targetUser) {
+        if (targetUser) {
+          if (clientUser === targetUser) {
+            try {
+              c.res.write(payload);
+              sentCount++;
+            } catch (e) {}
+          }
+        } else {
           try {
             c.res.write(payload);
-            sentDirectly = true;
+            sentCount++;
           } catch (e) {}
         }
       });
 
-      // Nếu không gửi trúng đích danh, phát sóng tới tất cả các máy khác để đảm bảo không bị thất lạc tín hiệu
-      if (!sentDirectly) {
+      // Nếu chưa gửi được tới ai (có thể client đích danh chưa gắn username trên SSE), phát tới tất cả các client khác
+      if (sentCount === 0) {
         clients.forEach(c => {
           if (!c.res) return;
-          if (c.username && c.username.toLowerCase() === (signalData.from || '').toLowerCase()) return;
+          const clientUser = (c.username || '').toLowerCase().trim();
+          if (clientUser && clientUser === fromUser) return;
           try { c.res.write(payload); } catch (e) {}
         });
       }

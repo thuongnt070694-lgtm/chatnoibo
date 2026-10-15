@@ -1885,16 +1885,82 @@ const rtcConfig = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" }
-  ]
+    { urls: "stun:stun2.l.google.com:19302" },
+    { urls: "stun:stun3.l.google.com:19302" },
+    { urls: "stun:stun4.l.google.com:19302" },
+    { urls: "stun:stun.services.mozilla.com" },
+    { urls: "stun:global.stun.twilio.com:3478" }
+  ],
+  iceCandidatePoolSize: 10
 };
+
+// Tạo MediaStream âm thanh mô phỏng khi thiết bị không cắm microphone hoặc bị xung đột
+function createVirtualAudioStream() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return new MediaStream();
+    const ctx = new AudioCtx();
+    const dest = ctx.createMediaStreamDestination();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(320, ctx.currentTime);
+    gain.gain.setValueAtTime(0.005, ctx.currentTime);
+    osc.connect(gain);
+    gain.connect(dest);
+    osc.start();
+    return dest.stream;
+  } catch (e) {
+    return new MediaStream();
+  }
+}
+
+// Hàm lấy quyền Mic và Camera an toàn, tự động fallback nếu bị xung đột
+async function acquireMediaStream(isVideo) {
+  let stream = null;
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
+        video: isVideo ? { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" } : false
+      });
+      return stream;
+    } catch (err) {
+      console.warn("Không mở được Media đầy đủ, thử fallback audio:", err);
+      // Nếu video bị chiếm dụng (ví dụ 2 tab cùng máy tính), chuyển sang chỉ lấy mic
+      if (isVideo) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+            video: false
+          });
+          showToast("⚠️ Camera đang bận. Đã chuyển sang gọi thoại.");
+          return stream;
+        } catch (e2) {}
+      }
+    }
+  }
+
+  // Fallback khi máy tính không có microphone cắm vào
+  console.warn("Dùng Web Audio stream giả lập để cuộc gọi vẫn thông suốt");
+  stream = createVirtualAudioStream();
+  showToast("ℹ️ Thiết bị chưa có Micro, đang chạy chế độ đàm thoại thử nghiệm.");
+  return stream;
+}
 
 function createPeerConnection(targetUsername) {
   if (activeCall.pc) {
     try { activeCall.pc.close(); } catch (e) {}
     activeCall.pc = null;
   }
-  activeCall.pendingCandidates = [];
+  // Giữ lại các candidates đã nhận từ trước (nếu có)
+  if (!activeCall.pendingCandidates) {
+    activeCall.pendingCandidates = [];
+  }
 
   const pc = new RTCPeerConnection(rtcConfig);
   activeCall.pc = pc;
@@ -1911,17 +1977,37 @@ function createPeerConnection(targetUsername) {
   };
 
   pc.ontrack = (event) => {
-    console.log("WebRTC ontrack received:", event.streams);
-    if (event.streams && event.streams[0]) {
-      attachRemoteStream(event.streams[0]);
+    console.log("WebRTC ontrack received track:", event.track, "streams:", event.streams);
+    let stream = (event.streams && event.streams[0]) ? event.streams[0] : null;
+    if (!stream) {
+      if (!activeCall.remoteStream) {
+        activeCall.remoteStream = new MediaStream();
+      }
+      activeCall.remoteStream.addTrack(event.track);
+      stream = activeCall.remoteStream;
+    } else {
+      activeCall.remoteStream = stream;
     }
+    attachRemoteStream(stream);
   };
 
   pc.onconnectionstatechange = () => {
-    console.log("ICE Connection State:", pc.connectionState);
+    console.log("WebRTC Connection State:", pc.connectionState);
+    const statusEl = document.getElementById("callStatusBadge");
     if (pc.connectionState === 'connected') {
-      const statusEl = document.getElementById("callStatusBadge");
       if (statusEl) statusEl.innerText = "Đã kết nối đàm thoại";
+      connectCallSession();
+    } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+      if (statusEl) statusEl.innerText = "Mất kết nối đàm thoại";
+    }
+  };
+
+  pc.oniceconnectionstatechange = () => {
+    console.log("ICE Connection State:", pc.iceConnectionState);
+    const statusEl = document.getElementById("callStatusBadge");
+    if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+      if (statusEl) statusEl.innerText = "Đã kết nối đàm thoại";
+      connectCallSession();
     }
   };
 
@@ -1929,15 +2015,50 @@ function createPeerConnection(targetUsername) {
 }
 
 function attachRemoteStream(remoteStream) {
+  activeCall.remoteStream = remoteStream;
+
+  // 1. Phát qua thẻ <audio>
   const remoteAudio = document.getElementById("callRemoteAudio");
   if (remoteAudio) {
     remoteAudio.srcObject = remoteStream;
-    remoteAudio.play().catch(e => {
-      console.warn("Audio autoplay blocked, waiting for interaction:", e);
-      document.addEventListener("click", () => remoteAudio.play(), { once: true });
-    });
+    remoteAudio.muted = false;
+    remoteAudio.volume = 1.0;
+    const p = remoteAudio.play();
+    if (p !== undefined) {
+      p.catch(e => {
+        console.warn("Audio autoplay blocked by browser policy:", e);
+        const unlock = () => {
+          remoteAudio.play().catch(() => {});
+          document.removeEventListener("click", unlock);
+          document.removeEventListener("keydown", unlock);
+        };
+        document.addEventListener("click", unlock, { once: true });
+        document.addEventListener("keydown", unlock, { once: true });
+      });
+    }
   }
 
+  // 2. Phát dự phòng qua Web Audio API Context (khuếch đại âm lượng đàm thoại rõ ràng)
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx && remoteStream.getAudioTracks().length > 0) {
+      if (!activeCall.playbackAudioCtx || activeCall.playbackAudioCtx.state === 'closed') {
+        activeCall.playbackAudioCtx = new AudioCtx();
+      }
+      if (activeCall.playbackAudioCtx.state === 'suspended') {
+        activeCall.playbackAudioCtx.resume().catch(() => {});
+      }
+      const src = activeCall.playbackAudioCtx.createMediaStreamSource(remoteStream);
+      const gain = activeCall.playbackAudioCtx.createGain();
+      gain.gain.setValueAtTime(1.2, activeCall.playbackAudioCtx.currentTime);
+      src.connect(gain);
+      gain.connect(activeCall.playbackAudioCtx.destination);
+    }
+  } catch (err) {
+    console.warn("Web Audio playback setup error:", err);
+  }
+
+  // 3. Khung hình Video (nếu có)
   const remoteVideo = document.getElementById("callRemoteVideo");
   const avatarStage = document.getElementById("callAvatarStage");
   const localVideo = document.getElementById("callLocalVideo");
@@ -1981,37 +2102,22 @@ async function startCall(isVideo) {
   const targetUsername = (partner.username || '').toLowerCase().trim();
   const pc = createPeerConnection(targetUsername);
 
-  // Mở mic / camera
-  let stream = null;
-  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        },
-        video: isVideo ? { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" } : false
-      });
-      activeCall.stream = stream;
+  // Mở mic / camera an toàn
+  const stream = await acquireMediaStream(isVideo);
+  activeCall.stream = stream;
 
-      const localVideo = document.getElementById("callLocalVideo");
-      const avatarStage = document.getElementById("callAvatarStage");
+  const localVideo = document.getElementById("callLocalVideo");
+  const avatarStage = document.getElementById("callAvatarStage");
 
-      if (isVideo && localVideo) {
-        localVideo.srcObject = stream;
-        localVideo.style.display = "block";
-        if (avatarStage) avatarStage.style.display = "none";
-      }
-
-      stream.getTracks().forEach(track => {
-        pc.addTrack(track, stream);
-      });
-    } catch (err) {
-      console.warn("Không mở được mic/cam:", err);
-      showToast("⚠️ Không mở được Microphone/Camera. Vui lòng cấp quyền trên trình duyệt!");
-    }
+  if (isVideo && localVideo && stream.getVideoTracks().length > 0) {
+    localVideo.srcObject = stream;
+    localVideo.style.display = "block";
+    if (avatarStage) avatarStage.style.display = "none";
   }
+
+  stream.getTracks().forEach(track => {
+    pc.addTrack(track, stream);
+  });
 
   try {
     const offer = await pc.createOffer({
@@ -2097,11 +2203,17 @@ function endCall() {
     activeCall.stream = null;
   }
 
+  if (activeCall.playbackAudioCtx) {
+    try { activeCall.playbackAudioCtx.close(); } catch (e) {}
+    activeCall.playbackAudioCtx = null;
+  }
+
   if (activeCall.pc) {
     try { activeCall.pc.close(); } catch (e) {}
     activeCall.pc = null;
   }
   activeCall.pendingCandidates = [];
+  activeCall.remoteStream = null;
 
   const waves = document.getElementById("callVoiceWaves");
   if (waves) waves.style.display = "none";
@@ -2185,37 +2297,22 @@ async function answerIncomingCall(signal) {
 
   const pc = createPeerConnection(callerUsername);
 
-  // Mở mic / camera phía người nghe
-  let stream = null;
-  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        },
-        video: signal.isVideo ? { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" } : false
-      });
-      activeCall.stream = stream;
+  // Mở mic / camera an toàn
+  const stream = await acquireMediaStream(!!signal.isVideo);
+  activeCall.stream = stream;
 
-      const localVideo = document.getElementById("callLocalVideo");
-      const avatarStage = document.getElementById("callAvatarStage");
+  const localVideo = document.getElementById("callLocalVideo");
+  const avatarStage = document.getElementById("callAvatarStage");
 
-      if (signal.isVideo && localVideo) {
-        localVideo.srcObject = stream;
-        localVideo.style.display = "block";
-        if (avatarStage) avatarStage.style.display = "none";
-      }
-
-      stream.getTracks().forEach(track => {
-        pc.addTrack(track, stream);
-      });
-    } catch (err) {
-      console.warn("Không mở được mic/cam phía người nghe:", err);
-      showToast("⚠️ Không mở được Microphone/Camera. Vui lòng cấp quyền trên trình duyệt!");
-    }
+  if (signal.isVideo && localVideo && stream.getVideoTracks().length > 0) {
+    localVideo.srcObject = stream;
+    localVideo.style.display = "block";
+    if (avatarStage) avatarStage.style.display = "none";
   }
+
+  stream.getTracks().forEach(track => {
+    pc.addTrack(track, stream);
+  });
 
   try {
     if (signal.offer) {
