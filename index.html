@@ -536,6 +536,12 @@
 
       <!-- Khung Video / Avatar hiển thị -->
       <div class="call-media-viewport" id="callMediaViewport">
+        <!-- Khung Video đối phương (Remote Camera thật qua WebRTC) -->
+        <video id="callRemoteVideo" autoplay playsinline class="call-remote-video" style="display: none;"></video>
+
+        <!-- Thẻ Audio phát tiếng đàm thoại đối phương (Remote Audio qua WebRTC) -->
+        <audio id="callRemoteAudio" autoplay playsinline></audio>
+
         <!-- Avatar đối phương (khi gọi thoại hoặc chưa có remote cam) -->
         <div class="call-avatar-stage" id="callAvatarStage">
           <img src="" alt="Avatar" id="callPartnerAvatar" class="call-stage-avatar">

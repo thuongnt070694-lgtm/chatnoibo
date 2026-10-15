@@ -19,12 +19,15 @@ let tempNewAvatarData = null;
 let allSystemUsers = []; // Tất cả người dùng trong công ty
 let currentGroupData = null; // Dữ liệu phân quyền và thành viên nhóm chat chung
 
-// Quản lý Cuộc Gọi (Web Audio + MediaDevices)
+// Quản lý Cuộc Gọi (WebRTC + MediaDevices + Audio)
 let activeCall = {
   active: false,
+  connected: false,
   partner: null,
   isVideo: false,
   stream: null,
+  pc: null,
+  pendingCandidates: [],
   timerInterval: null,
   seconds: 0,
   audioCtx: null,
@@ -205,8 +208,181 @@ function renderCurrentUserUI() {
 }
 
 // ==========================================
-// 4. TẢI DANH BẠ ĐỒNG NGHIỆP TỪ MÁY CHỦ
+// 4. TẢI DANH BẠ ĐỒNG NGHIỆP & LỊCH SỬ TIN NHẮN TỪ MÁY CHỦ
 // ==========================================
+
+function getMsgCacheKey() {
+  return currentUser ? ("chatexcel_cached_msgs_" + (currentUser.username || "").toLowerCase().trim()) : null;
+}
+
+function saveLocalMessage(msg) {
+  const cacheKey = getMsgCacheKey();
+  if (!cacheKey || !msg) return;
+  try {
+    const raw = localStorage.getItem(cacheKey);
+    let list = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(list)) list = [];
+    if (!list.some(m => m.id === msg.id)) {
+      list.push(msg);
+      if (list.length > 3000) list.shift();
+      localStorage.setItem(cacheKey, JSON.stringify(list));
+    }
+  } catch (e) {}
+}
+
+function clearLocalMessages(targetUsername, isGroup) {
+  const cacheKey = getMsgCacheKey();
+  if (!cacheKey) return;
+  try {
+    const raw = localStorage.getItem(cacheKey);
+    let list = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(list)) return;
+
+    if (isGroup) {
+      list = list.filter(m => !m.isGroup);
+    } else if (targetUsername) {
+      const myUser = (currentUser.username || '').toLowerCase().trim();
+      const target = (targetUsername || '').toLowerCase().trim();
+      list = list.filter(m => {
+        if (m.isGroup) return true;
+        const s = (m.senderUsername || '').toLowerCase().trim();
+        const t = (m.targetUsername || '').toLowerCase().trim();
+        const isBetween = (s === myUser && t === target) || (s === target && t === myUser);
+        return !isBetween;
+      });
+    }
+    localStorage.setItem(cacheKey, JSON.stringify(list));
+  } catch (e) {}
+}
+
+function hydrateMessagesIntoConversations(msgs) {
+  if (!Array.isArray(msgs) || !currentUser) return;
+  const myUsername = (currentUser.username || '').toLowerCase().trim();
+
+  // Reset mảng tin nhắn của từng hội thoại để nạp chính xác theo thời gian
+  internalUsers.forEach(u => {
+    u.messages = [];
+    u.sharedImages = [];
+    u.sharedFiles = [];
+    u.sharedLinks = [];
+  });
+
+  msgs.forEach(m => {
+    let targetConv = null;
+
+    if (m.isGroup) {
+      targetConv = internalUsers.find(u => u.isGroup);
+    } else {
+      const s = (m.senderUsername || '').toLowerCase().trim();
+      const t = (m.targetUsername || '').toLowerCase().trim();
+      let partner = "";
+      if (s === myUsername) partner = t;
+      else if (t === myUsername) partner = s;
+
+      if (partner) {
+        targetConv = internalUsers.find(u => (u.username || '').toLowerCase().trim() === partner);
+      }
+    }
+
+    if (!targetConv) return;
+
+    const isMe = (m.senderUsername && m.senderUsername.toLowerCase().trim() === myUsername) || (m.sender === 'me');
+    let senderType = isMe ? 'me' : 'them';
+    if (m.type === 'system') senderType = 'system';
+
+    const formattedMsg = {
+      id: m.id || ('msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)),
+      sender: senderType,
+      senderName: m.senderName || (isMe ? currentUser.fullName : (targetConv.name || '')),
+      senderUsername: m.senderUsername || (isMe ? currentUser.username : targetConv.username),
+      type: m.type || 'text',
+      text: m.text || '',
+      fileName: m.fileName,
+      fileSize: m.fileSize,
+      fileExt: m.fileExt,
+      fileUrl: m.fileUrl,
+      imageUrl: m.imageUrl,
+      caption: m.caption,
+      time: m.time || '',
+      status: m.status || 'seen'
+    };
+
+    targetConv.messages.push(formattedMsg);
+
+    // Cột phải: Ảnh chia sẻ
+    if (formattedMsg.type === 'image' && formattedMsg.imageUrl) {
+      targetConv.sharedImages.unshift({
+        id: 'img_' + formattedMsg.id,
+        url: formattedMsg.imageUrl,
+        title: formattedMsg.caption || formattedMsg.fileName || 'Hình ảnh',
+        date: formattedMsg.time || 'Gần đây'
+      });
+    } else if (formattedMsg.type === 'file' && (formattedMsg.fileName || formattedMsg.fileUrl)) {
+      targetConv.sharedFiles.unshift({
+        id: 'file_' + formattedMsg.id,
+        name: formattedMsg.fileName || 'Tệp đính kèm',
+        size: formattedMsg.fileSize || '',
+        ext: formattedMsg.fileExt || getExtCategory((formattedMsg.fileName || '').split('.').pop().toLowerCase()),
+        url: formattedMsg.fileUrl || '#',
+        date: formattedMsg.time || 'Gần đây'
+      });
+    }
+
+    // Cột phải: Liên kết URL
+    if (formattedMsg.type === 'text' && formattedMsg.text) {
+      const urlMatches = formattedMsg.text.match(/(https?:\/\/[^\s]+)/g);
+      if (urlMatches) {
+        urlMatches.forEach(url => {
+          targetConv.sharedLinks.unshift({ id: 'link_' + formattedMsg.id, title: url, url: url });
+        });
+      }
+    }
+  });
+
+  // Cập nhật giao diện nếu đang mở cuộc trò chuyện
+  if (currentUserId) {
+    const activeUser = internalUsers.find(u => u.id === currentUserId);
+    if (activeUser) {
+      renderMessages(activeUser);
+      renderRightPanelDetails(activeUser);
+    }
+  }
+  renderUserList();
+}
+
+async function loadMessagesHistory() {
+  if (!currentUser) return;
+  const cacheKey = getMsgCacheKey();
+
+  // 1. Tải ngay từ LocalStorage để người dùng thấy tin nhắn ngay lập tức (0ms)
+  if (cacheKey) {
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          hydrateMessagesIntoConversations(parsed);
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 2. Tải toàn bộ lịch sử chính thức từ Server qua /api/messages
+  try {
+    const res = await fetch(`/api/messages?username=${encodeURIComponent(currentUser.username)}`);
+    if (res.ok) {
+      const data = await res.json();
+      const msgs = data.messages || [];
+      if (cacheKey) {
+        localStorage.setItem(cacheKey, JSON.stringify(msgs));
+      }
+      hydrateMessagesIntoConversations(msgs);
+    }
+  } catch (err) {
+    console.warn("Chưa thể đồng bộ tin nhắn từ máy chủ:", err);
+  }
+}
+
 async function loadUsersAndSync() {
   try {
     const res = await fetch("/api/users");
@@ -217,9 +393,11 @@ async function loadUsersAndSync() {
         currentGroupData = data.group;
       }
       buildUserListFromAccounts(data.users || [], data.group);
+      await loadMessagesHistory();
     }
   } catch (err) {
     console.log("Chạy chế độ độc lập (offline)");
+    await loadMessagesHistory();
   }
 
   // Kết nối Server-Sent Events với username của mình
@@ -227,6 +405,13 @@ async function loadUsersAndSync() {
 }
 
 function buildUserListFromAccounts(allAccounts, serverGroup) {
+  // Lưu lại tin nhắn và dữ liệu hiện tại của các cuộc trò chuyện trước khi cập nhật
+  const existingMap = new Map();
+  internalUsers.forEach(u => {
+    existingMap.set(u.id, u);
+    if (u.username) existingMap.set(u.username, u);
+  });
+
   // Lọc bỏ chính tài khoản của mình ra khỏi danh bạ người chat
   const otherUsers = allAccounts.filter(acc => acc.username !== currentUser?.username);
 
@@ -235,7 +420,7 @@ function buildUserListFromAccounts(allAccounts, serverGroup) {
   const groupAvatar = groupInfo?.avatar || "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=150&auto=format&fit=crop&q=80";
 
   // Bảo lưu tin nhắn nhóm nếu đã có từ trước
-  const existingGroup = internalUsers.find(u => u.isGroup);
+  const existingGroup = existingMap.get("grp_all");
 
   // Cách 2: Chỉ người dùng đã được thêm vào nhóm mới thấy và truy cập được Nhóm Chat Chung
   const isMember = groupInfo && Array.isArray(groupInfo.members) && groupInfo.members.includes(currentUser?.username);
@@ -268,7 +453,7 @@ function buildUserListFromAccounts(allAccounts, serverGroup) {
   }
 
   otherUsers.forEach(acc => {
-    const existing = internalUsers.find(u => u.username === acc.username);
+    const existing = existingMap.get("u_" + acc.username) || existingMap.get(acc.username);
     internalUsers.push({
       id: "u_" + acc.username,
       username: acc.username,
@@ -510,7 +695,13 @@ function renderMessages(user) {
     }
 
     const isMe = msg.sender === "me";
-    const senderAvatar = isMe ? currentUser.avatar : user.avatar;
+    let senderAvatar = isMe ? currentUser.avatar : (user.avatar || "");
+    if (!isMe && user.isGroup && msg.senderUsername) {
+      const senderAcc = allSystemUsers.find(a => (a.username || '').toLowerCase() === (msg.senderUsername || '').toLowerCase());
+      if (senderAcc && senderAcc.avatar) {
+        senderAvatar = senderAcc.avatar;
+      }
+    }
 
     let contentHtml = "";
 
@@ -845,16 +1036,19 @@ function sendMessage() {
   renderUserList();
   renderRightPanelDetails(user);
 
+  const payloadMsg = {
+    ...newMsg,
+    targetId: currentUserId,
+    targetUsername: user.username || "",
+    isGroup: !!user.isGroup
+  };
+  saveLocalMessage(payloadMsg);
+
   // Gửi qua Server API
   fetch("/api/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      ...newMsg,
-      targetId: currentUserId,
-      targetUsername: user.username || "",
-      isGroup: user.isGroup
-    })
+    body: JSON.stringify(payloadMsg)
   })
   .then(res => {
     if (!res.ok) {
@@ -1637,6 +1831,81 @@ function setupCallingEvents() {
   });
 }
 
+const rtcConfig = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun2.l.google.com:19302" }
+  ]
+};
+
+function createPeerConnection(targetUsername) {
+  if (activeCall.pc) {
+    try { activeCall.pc.close(); } catch (e) {}
+    activeCall.pc = null;
+  }
+  activeCall.pendingCandidates = [];
+
+  const pc = new RTCPeerConnection(rtcConfig);
+  activeCall.pc = pc;
+
+  pc.onicecandidate = (event) => {
+    if (event.candidate && activeCall.active) {
+      sendCallSignal({
+        type: 'candidate',
+        candidate: event.candidate,
+        from: currentUser.username,
+        to: targetUsername
+      });
+    }
+  };
+
+  pc.ontrack = (event) => {
+    console.log("WebRTC ontrack received:", event.streams);
+    if (event.streams && event.streams[0]) {
+      attachRemoteStream(event.streams[0]);
+    }
+  };
+
+  pc.onconnectionstatechange = () => {
+    console.log("ICE Connection State:", pc.connectionState);
+    if (pc.connectionState === 'connected') {
+      const statusEl = document.getElementById("callStatusBadge");
+      if (statusEl) statusEl.innerText = "Đã kết nối đàm thoại";
+    }
+  };
+
+  return pc;
+}
+
+function attachRemoteStream(remoteStream) {
+  const remoteAudio = document.getElementById("callRemoteAudio");
+  if (remoteAudio) {
+    remoteAudio.srcObject = remoteStream;
+    remoteAudio.play().catch(e => {
+      console.warn("Audio autoplay blocked, waiting for interaction:", e);
+      document.addEventListener("click", () => remoteAudio.play(), { once: true });
+    });
+  }
+
+  const remoteVideo = document.getElementById("callRemoteVideo");
+  const avatarStage = document.getElementById("callAvatarStage");
+  const localVideo = document.getElementById("callLocalVideo");
+
+  const hasVideoTrack = remoteStream.getVideoTracks().length > 0;
+  if (remoteVideo && hasVideoTrack) {
+    remoteVideo.srcObject = remoteStream;
+    remoteVideo.style.display = "block";
+    remoteVideo.play().catch(e => {});
+    if (avatarStage) avatarStage.style.display = "none";
+    if (localVideo) localVideo.classList.add("pip");
+  } else {
+    if (remoteVideo) remoteVideo.style.display = "none";
+    if (avatarStage) avatarStage.style.display = "flex";
+    if (localVideo) localVideo.classList.remove("pip");
+  }
+}
+
 // Bắt đầu cuộc gọi đi
 async function startCall(isVideo) {
   if (!currentUserId) {
@@ -1644,7 +1913,7 @@ async function startCall(isVideo) {
     return;
   }
   const partner = internalUsers.find(u => u.id === currentUserId);
-  if (!partner) return;
+  if (!partner || !partner.username) return;
 
   if (partner.isGroup) {
     showToast("Cuộc gọi nhóm sẽ có trong phiên bản tới.");
@@ -1652,20 +1921,28 @@ async function startCall(isVideo) {
   }
 
   activeCall.active = true;
+  activeCall.connected = false;
   activeCall.partner = partner;
   activeCall.isVideo = isVideo;
 
-  // Mở giao diện cuộc gọi ngay lập tức
   openCallModal(partner, isVideo);
+  playOutgoingRing();
 
-  // Thử bật camera/mic nếu trình duyệt hỗ trợ (không bao giờ bắt máy ảo hay báo lỗi)
+  const targetUsername = (partner.username || '').toLowerCase().trim();
+  const pc = createPeerConnection(targetUsername);
+
+  // Mở mic / camera
+  let stream = null;
   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     try {
-      const constraints = {
-        audio: true,
-        video: isVideo ? { width: { ideal: 640 }, height: { ideal: 480 } } : false
-      };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
+        video: isVideo ? { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" } : false
+      });
       activeCall.stream = stream;
 
       const localVideo = document.getElementById("callLocalVideo");
@@ -1676,33 +1953,44 @@ async function startCall(isVideo) {
         localVideo.style.display = "block";
         if (avatarStage) avatarStage.style.display = "none";
       }
+
+      stream.getTracks().forEach(track => {
+        pc.addTrack(track, stream);
+      });
     } catch (err) {
-      // Không có camera hoặc đang truy cập qua IP thường: Tự động chạy chế độ thoại đàm thoại mượt mà
+      console.warn("Không mở được mic/cam:", err);
+      showToast("⚠️ Không mở được Microphone/Camera. Vui lòng cấp quyền trên trình duyệt!");
     }
   }
 
-  // Phát tiếng chuông reo
-  playOutgoingRing();
+  try {
+    const offer = await pc.createOffer({
+      offerToReceiveAudio: true,
+      offerToReceiveVideo: !!isVideo
+    });
+    await pc.setLocalDescription(offer);
 
-  // Gửi tín hiệu gọi qua máy chủ server (gửi cả username và họ tên đối phương)
-  sendCallSignal({
-    type: 'invite',
-    from: currentUser.username,
-    fromName: currentUser.fullName,
-    fromAvatar: currentUser.avatar,
-    to: partner.username || partner.name,
-    toName: partner.name,
-    isVideo: isVideo
-  });
+    sendCallSignal({
+      type: 'invite',
+      from: currentUser.username,
+      fromName: currentUser.fullName,
+      fromAvatar: currentUser.avatar,
+      to: targetUsername,
+      toName: partner.name,
+      isVideo: isVideo,
+      offer: offer
+    });
+  } catch (err) {
+    console.error("Lỗi tạo SDP offer:", err);
+  }
 
-  // Đang chờ đối phương nhấc máy (tối đa 40 giây)
   if (activeCall.ringTimeout) clearTimeout(activeCall.ringTimeout);
   activeCall.ringTimeout = setTimeout(() => {
     if (activeCall.active && !activeCall.connected) {
       endCall();
       showToast("Đối phương không trả lời cuộc gọi.");
     }
-  }, 40000);
+  }, 45000);
 }
 
 function openCallModal(partner, isVideo) {
@@ -1759,8 +2047,37 @@ function endCall() {
     activeCall.stream = null;
   }
 
+  if (activeCall.pc) {
+    try { activeCall.pc.close(); } catch (e) {}
+    activeCall.pc = null;
+  }
+  activeCall.pendingCandidates = [];
+
   const waves = document.getElementById("callVoiceWaves");
   if (waves) waves.style.display = "none";
+
+  const remoteAudio = document.getElementById("callRemoteAudio");
+  if (remoteAudio) {
+    remoteAudio.pause();
+    remoteAudio.srcObject = null;
+  }
+
+  const remoteVideo = document.getElementById("callRemoteVideo");
+  if (remoteVideo) {
+    remoteVideo.pause();
+    remoteVideo.srcObject = null;
+    remoteVideo.style.display = "none";
+  }
+
+  const localVideo = document.getElementById("callLocalVideo");
+  if (localVideo) {
+    localVideo.srcObject = null;
+    localVideo.style.display = "none";
+    localVideo.classList.remove("pip");
+  }
+
+  const avatarStage = document.getElementById("callAvatarStage");
+  if (avatarStage) avatarStage.style.display = "flex";
 
   if (activeCall.partner && currentUser) {
     sendCallSignal({
@@ -1772,9 +2089,6 @@ function endCall() {
 
   const modal = document.getElementById("callModal");
   if (modal) modal.style.display = "none";
-
-  const localVideo = document.getElementById("callLocalVideo");
-  if (localVideo) localVideo.srcObject = null;
 
   activeCall.active = false;
   activeCall.connected = false;
@@ -1804,44 +2118,83 @@ function hideIncomingCallAlert() {
 }
 
 async function answerIncomingCall(signal) {
-  const partnerUser = internalUsers.find(u => u.username === signal.from) || {
-    id: "u_" + signal.from,
-    name: signal.fromName || signal.from,
+  const callerUsername = (signal.from || '').toLowerCase().trim();
+  const partnerUser = internalUsers.find(u => u.username && u.username.toLowerCase() === callerUsername) || {
+    id: "u_" + callerUsername,
+    name: signal.fromName || callerUsername,
     avatar: signal.fromAvatar,
-    username: signal.from
+    username: callerUsername
   };
 
   activeCall.active = true;
+  activeCall.connected = false;
   activeCall.partner = partnerUser;
-  activeCall.isVideo = signal.isVideo;
+  activeCall.isVideo = !!signal.isVideo;
 
-  openCallModal(partnerUser, signal.isVideo);
+  openCallModal(partnerUser, !!signal.isVideo);
 
+  const pc = createPeerConnection(callerUsername);
+
+  // Mở mic / camera phía người nghe
+  let stream = null;
   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: signal.isVideo ? { width: { ideal: 640 }, height: { ideal: 480 } } : false
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
+        video: signal.isVideo ? { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" } : false
       });
       activeCall.stream = stream;
+
       const localVideo = document.getElementById("callLocalVideo");
+      const avatarStage = document.getElementById("callAvatarStage");
+
       if (signal.isVideo && localVideo) {
         localVideo.srcObject = stream;
         localVideo.style.display = "block";
-        document.getElementById("callAvatarStage").style.display = "none";
+        if (avatarStage) avatarStage.style.display = "none";
       }
-    } catch (err) {}
+
+      stream.getTracks().forEach(track => {
+        pc.addTrack(track, stream);
+      });
+    } catch (err) {
+      console.warn("Không mở được mic/cam phía người nghe:", err);
+      showToast("⚠️ Không mở được Microphone/Camera. Vui lòng cấp quyền trên trình duyệt!");
+    }
   }
 
-  sendCallSignal({
-    type: 'answer',
-    from: currentUser.username,
-    fromName: currentUser.fullName,
-    to: signal.from,
-    toName: signal.fromName || signal.from
-  });
+  try {
+    if (signal.offer) {
+      await pc.setRemoteDescription(new RTCSessionDescription(signal.offer));
 
-  connectCallSession();
+      if (activeCall.pendingCandidates && activeCall.pendingCandidates.length > 0) {
+        for (const cand of activeCall.pendingCandidates) {
+          try { await pc.addIceCandidate(new RTCIceCandidate(cand)); } catch (e) {}
+        }
+        activeCall.pendingCandidates = [];
+      }
+    }
+
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    sendCallSignal({
+      type: 'answer',
+      from: currentUser.username,
+      fromName: currentUser.fullName,
+      to: callerUsername,
+      toName: signal.fromName || callerUsername,
+      answer: answer
+    });
+
+    connectCallSession();
+  } catch (err) {
+    console.error("Lỗi tạo SDP answer:", err);
+  }
 }
 
 // ==========================================
@@ -1852,6 +2205,9 @@ function playOutgoingRing() {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     activeCall.audioCtx = ctx;
 
     const osc = ctx.createOscillator();
@@ -1880,6 +2236,9 @@ function playIncomingRing() {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     activeCall.audioCtx = ctx;
 
     const osc = ctx.createOscillator();
@@ -1945,56 +2304,99 @@ function initRealtimeSSE() {
         // 1. Nhận tin nhắn mới
         if (type === "new_message") {
           const msg = data;
-          if (msg.senderUsername === currentUser.username) return; // Bỏ qua tin chính mình
+          if (msg.senderUsername === currentUser.username) return; // Bỏ qua tin chính mình đã thêm vào giao diện
 
           let targetConversation = null;
           if (msg.isGroup) {
             targetConversation = internalUsers.find(u => u.isGroup);
           } else {
-            targetConversation = internalUsers.find(u => u.username === msg.senderUsername);
+            targetConversation = internalUsers.find(u => (u.username || '').toLowerCase() === (msg.senderUsername || '').toLowerCase());
           }
 
           if (targetConversation) {
-            targetConversation.messages.push({
-              id: msg.id,
-              sender: "them",
-              senderName: msg.senderName,
-              type: msg.type,
-              text: msg.text,
-              fileName: msg.fileName,
-              fileSize: msg.fileSize,
-              fileExt: msg.fileExt,
-              imageUrl: msg.imageUrl,
-              caption: msg.caption,
-              time: msg.time,
-              status: "seen"
-            });
+            // Tránh trùng tin nhắn
+            if (!targetConversation.messages.some(m => m.id === msg.id)) {
+              const newReceivedMsg = {
+                id: msg.id || ('msg_' + Date.now()),
+                sender: msg.type === "system" ? "system" : "them",
+                senderName: msg.senderName,
+                senderUsername: msg.senderUsername,
+                type: msg.type || "text",
+                text: msg.text || "",
+                fileName: msg.fileName,
+                fileSize: msg.fileSize,
+                fileExt: msg.fileExt,
+                fileUrl: msg.fileUrl,
+                imageUrl: msg.imageUrl,
+                caption: msg.caption,
+                time: msg.time || new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+                status: "seen"
+              };
+              targetConversation.messages.push(newReceivedMsg);
 
-            if (msg.type === "image" && msg.imageUrl) {
-              targetConversation.sharedImages.unshift({
-                id: "img_" + Date.now(),
-                url: msg.imageUrl,
-                title: msg.caption || "Hình ảnh",
-                date: "Vừa xong"
+              // Lưu vào bộ nhớ cục bộ
+              saveLocalMessage({
+                ...msg,
+                targetId: targetConversation.id,
+                targetUsername: targetConversation.username || "",
+                isGroup: !!targetConversation.isGroup
               });
-            } else if (msg.type === "file" && msg.fileName) {
-              targetConversation.sharedFiles.unshift({
-                id: "file_" + Date.now(),
-                name: msg.fileName,
-                size: msg.fileSize,
-                ext: msg.fileExt,
-                date: "Vừa xong"
-              });
-            }
 
-            if (currentUserId === targetConversation.id) {
-              renderMessages(targetConversation);
-              renderRightPanelDetails(targetConversation);
-            } else {
-              targetConversation.unreadCount = (targetConversation.unreadCount || 0) + 1;
+              if (msg.type === "image" && msg.imageUrl) {
+                targetConversation.sharedImages.unshift({
+                  id: "img_" + (msg.id || Date.now()),
+                  url: msg.imageUrl,
+                  title: msg.caption || "Hình ảnh",
+                  date: msg.time || "Vừa xong"
+                });
+              } else if (msg.type === "file" && msg.fileName) {
+                targetConversation.sharedFiles.unshift({
+                  id: "file_" + (msg.id || Date.now()),
+                  name: msg.fileName,
+                  size: msg.fileSize,
+                  ext: msg.fileExt,
+                  url: msg.fileUrl,
+                  date: msg.time || "Vừa xong"
+                });
+              }
+
+              if (msg.type === "text" && msg.text) {
+                const urlMatches = msg.text.match(/(https?:\/\/[^\s]+)/g);
+                if (urlMatches) {
+                  urlMatches.forEach(url => {
+                    targetConversation.sharedLinks.unshift({ id: "link_" + msg.id, title: url, url: url });
+                  });
+                }
+              }
+
+              if (currentUserId === targetConversation.id) {
+                renderMessages(targetConversation);
+                renderRightPanelDetails(targetConversation);
+              } else {
+                targetConversation.unreadCount = (targetConversation.unreadCount || 0) + 1;
+              }
+              renderUserList();
+              showToast(`📩 Tin nhắn mới từ ${msg.senderName}!`);
             }
-            renderUserList();
-            showToast(`📩 Tin nhắn mới từ ${msg.senderName}!`);
+          }
+        }
+
+        // 1.1 Sự kiện xóa tin nhắn
+        if (type === "messages_cleared" && data) {
+          if (data.isGroup) {
+            const grp = internalUsers.find(u => u.isGroup);
+            if (grp) {
+              grp.messages = [];
+              grp.sharedImages = [];
+              grp.sharedFiles = [];
+              grp.sharedLinks = [];
+              if (currentUserId === grp.id) {
+                renderMessages(grp);
+                renderRightPanelDetails(grp);
+              }
+              renderUserList();
+            }
+            clearLocalMessages("", true);
           }
         }
 
@@ -2021,10 +2423,30 @@ function initRealtimeSSE() {
             if (data.type === "invite") {
               handleIncomingCall(data);
             } else if (data.type === "answer") {
-              // Máy bên kia ĐÃ BẤM TRẢ LỜI -> Máy gọi chính thức kết nối và bắt đầu đếm giây!
+              // Máy bên kia ĐÃ BẤM TRẢ LỜI -> Thiết lập WebRTC Remote Description & Bắt đầu đàm thoại!
               if (activeCall.ringTimeout) clearTimeout(activeCall.ringTimeout);
+              if (activeCall.pc && data.answer) {
+                activeCall.pc.setRemoteDescription(new RTCSessionDescription(data.answer))
+                  .then(() => {
+                    if (activeCall.pendingCandidates && activeCall.pendingCandidates.length > 0) {
+                      for (const cand of activeCall.pendingCandidates) {
+                        try { activeCall.pc.addIceCandidate(new RTCIceCandidate(cand)); } catch (e) {}
+                      }
+                      activeCall.pendingCandidates = [];
+                    }
+                  })
+                  .catch(e => console.error("Lỗi setRemoteDescription answer:", e));
+              }
               connectCallSession();
               showToast(`✅ ${data.fromName || "Đối phương"} đã nhấc máy!`);
+            } else if (data.type === "candidate" && data.candidate) {
+              // Nhận ICE Candidate để thông mạng đàm thoại
+              if (activeCall.pc && activeCall.pc.remoteDescription && activeCall.pc.remoteDescription.type) {
+                activeCall.pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(e => console.error(e));
+              } else {
+                if (!activeCall.pendingCandidates) activeCall.pendingCandidates = [];
+                activeCall.pendingCandidates.push(data.candidate);
+              }
             } else if (data.type === "reject") {
               if (activeCall.ringTimeout) clearTimeout(activeCall.ringTimeout);
               endCall();
@@ -2353,4 +2775,124 @@ function setupEventListeners() {
   // Lightbox
   document.getElementById("lightboxOverlay")?.addEventListener("click", closeLightbox);
   document.getElementById("lightboxCloseBtn")?.addEventListener("click", closeLightbox);
+
+  // Xóa lịch sử tin nhắn
+  document.getElementById("optClearChat")?.addEventListener("click", async () => {
+    if (!currentUserId || !currentUser) return;
+    const user = internalUsers.find(u => u.id === currentUserId);
+    if (!user) return;
+
+    if (user.isGroup) {
+      const myRole = getMyGroupRole();
+      if (myRole !== "leader" && myRole !== "deputy") {
+        showToast("🔒 Chỉ Trưởng nhóm hoặc Phó nhóm mới có quyền xóa lịch sử chat của nhóm!");
+        return;
+      }
+    }
+
+    const confirmMsg = user.isGroup
+      ? "Bạn có chắc chắn muốn xóa toàn bộ lịch sử tin nhắn của Nhóm Chat Chung?"
+      : `Bạn có chắc chắn muốn xóa toàn bộ tin nhắn với ${user.name}?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      await fetch("/api/messages/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requester: currentUser.username,
+          targetUsername: user.username || "",
+          isGroup: !!user.isGroup
+        })
+      });
+
+      user.messages = [];
+      user.sharedImages = [];
+      user.sharedFiles = [];
+      user.sharedLinks = [];
+      clearLocalMessages(user.username, !!user.isGroup);
+      renderMessages(user);
+      renderRightPanelDetails(user);
+      renderUserList();
+      showToast("🗑️ Đã xóa lịch sử tin nhắn thành công!");
+    } catch (err) {
+      user.messages = [];
+      user.sharedImages = [];
+      user.sharedFiles = [];
+      user.sharedLinks = [];
+      clearLocalMessages(user.username, !!user.isGroup);
+      renderMessages(user);
+      renderRightPanelDetails(user);
+      renderUserList();
+      showToast("🗑️ Đã xóa tin nhắn trên thiết bị!");
+    }
+  });
+
+  // Xuất lịch sử tin nhắn (.TXT)
+  document.getElementById("optExportHistory")?.addEventListener("click", () => {
+    if (!currentUserId || !currentUser) return;
+    const user = internalUsers.find(u => u.id === currentUserId);
+    if (!user || !user.messages || user.messages.length === 0) {
+      showToast("ℹ️ Chưa có tin nhắn nào để xuất!");
+      return;
+    }
+
+    let textContent = `=== LỊCH SỬ TRÒ CHUYỆN: ${user.name} ===\r\n`;
+    textContent += `Thời gian xuất: ${new Date().toLocaleString('vi-VN')}\r\n`;
+    textContent += `Tài khoản: ${currentUser.fullName} (@${currentUser.username})\r\n`;
+    textContent += `==========================================\r\n\r\n`;
+
+    user.messages.forEach(m => {
+      const time = m.time || "";
+      const sender = m.sender === "me" ? currentUser.fullName : (m.senderName || user.name);
+      if (m.type === "system") {
+        textContent += `[${time}] [HỆ THỐNG] ${m.text}\r\n`;
+      } else if (m.type === "image") {
+        textContent += `[${time}] ${sender}: [Hình ảnh: ${m.caption || 'Ảnh đính kèm'}]\r\n`;
+      } else if (m.type === "file") {
+        textContent += `[${time}] ${sender}: [Tệp tin: ${m.fileName} (${m.fileSize || ''})]\r\n`;
+      } else {
+        textContent += `[${time}] ${sender}: ${m.text}\r\n`;
+      }
+    });
+
+    const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lich_su_chat_${user.username || 'nhom'}_${Date.now()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("📄 Đã xuất lịch sử tin nhắn thành công!");
+  });
+
+  // Tìm kiếm tin nhắn trong hội thoại
+  document.getElementById("optSearchInChat")?.addEventListener("click", () => {
+    const keyword = prompt("Nhập từ khóa cần tìm trong cuộc trò chuyện này:");
+    if (!keyword) return;
+    const user = internalUsers.find(u => u.id === currentUserId);
+    if (!user) return;
+    const kw = keyword.toLowerCase().trim();
+    const matches = user.messages.filter(m => m.text && m.text.toLowerCase().includes(kw));
+    if (matches.length === 0) {
+      showToast(`Không tìm thấy tin nhắn nào chứa "${keyword}"`);
+    } else {
+      showToast(`🔍 Tìm thấy ${matches.length} tin nhắn phù hợp!`);
+    }
+  });
+
+  // Ghim cuộc trò chuyện
+  document.getElementById("optPinChat")?.addEventListener("click", () => {
+    if (!currentUserId) return;
+    const idx = internalUsers.findIndex(u => u.id === currentUserId);
+    if (idx > -1) {
+      const item = internalUsers.splice(idx, 1)[0];
+      internalUsers.unshift(item);
+      renderUserList();
+      showToast(`📌 Đã ghim "${item.name}" lên đầu danh sách!`);
+    }
+  });
 }

@@ -124,7 +124,33 @@ function getEnrichedGroupInfo() {
 
 // Lưu trữ các client SSE đang kết nối
 let clients = []; // Array of { id, username, res }
-let messagesHistory = []; // Lưu trữ tin nhắn
+
+// Khởi tạo cơ sở dữ liệu tin nhắn lâu dài
+const MESSAGES_DB_FILE = path.join(__dirname, 'messages_db.json');
+let messagesHistory = [];
+try {
+  if (fs.existsSync(MESSAGES_DB_FILE)) {
+    messagesHistory = JSON.parse(fs.readFileSync(MESSAGES_DB_FILE, 'utf-8'));
+    if (!Array.isArray(messagesHistory)) messagesHistory = [];
+  }
+} catch (e) {
+  console.error("Lỗi đọc messages_db.json:", e);
+  messagesHistory = [];
+}
+
+function saveMessages() {
+  try {
+    fs.writeFileSync(MESSAGES_DB_FILE, JSON.stringify(messagesHistory, null, 2), 'utf-8');
+  } catch (e) {
+    console.error("Lỗi lưu messages_db.json:", e);
+  }
+}
+
+function addMessage(msg) {
+  messagesHistory.push(msg);
+  if (messagesHistory.length > 3000) messagesHistory.shift();
+  saveMessages();
+}
 
 function getLocalIpAddress() {
   const interfaces = os.networkInterfaces();
@@ -189,17 +215,29 @@ const server = http.createServer(async (req, res) => {
 
   // 1. ENDPOINT SERVER-SENT EVENTS (SSE)
   if (pathname === '/api/events') {
-    const username = url.searchParams.get('username') || '';
+    const username = (url.searchParams.get('username') || '').toLowerCase().trim();
     const clientId = 'c_' + Math.random().toString(36).substring(2, 9);
 
+    if (req.socket && typeof req.socket.setNoDelay === 'function') {
+      req.socket.setNoDelay(true);
+    }
+
     res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive'
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+      'Access-Control-Allow-Origin': '*'
     });
+    if (typeof res.flushHeaders === 'function') {
+      res.flushHeaders();
+    }
 
     const clientObj = { id: clientId, username, res };
     clients.push(clientObj);
+
+    // Gửi ngay ping để xác nhận đường truyền SSE mở tức thì
+    res.write(': connected\n\n');
 
     // Gửi thông báo danh sách online mới
     broadcastEvent('users_online_update', getOnlineUsers());
@@ -383,7 +421,7 @@ const server = http.createServer(async (req, res) => {
           text: `🔔 ${reqAcc ? reqAcc.fullName : requester} đã thêm ${addedAcc ? addedAcc.fullName : username} vào nhóm.`,
           time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
         };
-        messagesHistory.push(sysMsg);
+        addMessage(sysMsg);
         broadcastEvent('new_message', sysMsg);
       }
 
@@ -445,7 +483,7 @@ const server = http.createServer(async (req, res) => {
         text: `🚪 ${reqAcc ? reqAcc.fullName : requester} đã xóa ${removedAcc ? removedAcc.fullName : username} khỏi nhóm.`,
         time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
       };
-      messagesHistory.push(sysMsg);
+      addMessage(sysMsg);
       broadcastEvent('new_message', sysMsg);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -498,7 +536,7 @@ const server = http.createServer(async (req, res) => {
         text: `👑 ${oldLeadAcc ? oldLeadAcc.fullName : requester} đã chuyển giao quyền Trưởng nhóm cho ${newLeadAcc ? newLeadAcc.fullName : newLeader}.`,
         time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
       };
-      messagesHistory.push(sysMsg);
+      addMessage(sysMsg);
       broadcastEvent('new_message', sysMsg);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -554,7 +592,7 @@ const server = http.createServer(async (req, res) => {
           : `ℹ️ ${leadAcc ? leadAcc.fullName : requester} đã hủy quyền Phó nhóm của ${targetAcc ? targetAcc.fullName : username}.`,
         time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
       };
-      messagesHistory.push(sysMsg);
+      addMessage(sysMsg);
       broadcastEvent('new_message', sysMsg);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -621,7 +659,7 @@ const server = http.createServer(async (req, res) => {
           : `🔊 ${reqAcc ? reqAcc.fullName : requester} đã gỡ cấm chat cho ${targetAcc ? targetAcc.fullName : username}.`,
         time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
       };
-      messagesHistory.push(sysMsg);
+      addMessage(sysMsg);
       broadcastEvent('new_message', sysMsg);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -668,7 +706,7 @@ const server = http.createServer(async (req, res) => {
           : `🔓 ${reqAcc ? reqAcc.fullName : requester} đã MỞ chế độ chat cho toàn bộ thành viên trong nhóm.`,
         time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
       };
-      messagesHistory.push(sysMsg);
+      addMessage(sysMsg);
       broadcastEvent('new_message', sysMsg);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -766,8 +804,7 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
-      messagesHistory.push(msgData);
-      if (messagesHistory.length > 500) messagesHistory.shift();
+      addMessage(msgData);
 
       if (msgData.isGroup) {
         // Chỉ gửi tin nhắn nhóm tới các thành viên thực sự của nhóm
@@ -790,12 +827,91 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // 6.1 LẤY TOÀN BỘ LỊCH SỬ TIN NHẮN (THEO USERNAME)
+  if (pathname === '/api/messages' && req.method === 'GET') {
+    const username = (url.searchParams.get('username') || '').toLowerCase().trim();
+    const isMemberOfGroup = groupInfo.members && groupInfo.members.includes(username);
+
+    const userMessages = messagesHistory.filter(m => {
+      if (m.isGroup) {
+        return isMemberOfGroup;
+      }
+      const s = (m.senderUsername || '').toLowerCase().trim();
+      const t = (m.targetUsername || '').toLowerCase().trim();
+      return (s === username || t === username);
+    });
+
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ messages: userMessages }));
+    return;
+  }
+
+  // 6.2 XÓA LỊCH SỬ TIN NHẮN CUỘC TRÒ CHUYỆN
+  if (pathname === '/api/messages/clear' && req.method === 'POST') {
+    try {
+      const data = await parseJsonBody(req);
+      const requester = (data.requester || '').toLowerCase().trim();
+      const targetUser = (data.targetUsername || '').toLowerCase().trim();
+      const isGroup = !!data.isGroup;
+
+      if (isGroup) {
+        const isLeader = (requester === groupInfo.leader);
+        const isDeputy = groupInfo.deputies && groupInfo.deputies.includes(requester);
+        if (isLeader || isDeputy) {
+          messagesHistory = messagesHistory.filter(m => !m.isGroup);
+          saveMessages();
+          broadcastEvent('messages_cleared', { targetId: 'grp_all', isGroup: true });
+        }
+      } else if (targetUser) {
+        messagesHistory = messagesHistory.filter(m => {
+          if (m.isGroup) return true;
+          const s = (m.senderUsername || '').toLowerCase().trim();
+          const t = (m.targetUsername || '').toLowerCase().trim();
+          const isBetween = (s === requester && t === targetUser) || (s === targetUser && t === requester);
+          return !isBetween;
+        });
+        saveMessages();
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok' }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Lỗi xóa tin nhắn' }));
+    }
+    return;
+  }
+
   // 7. TÍN HIỆU CUỘC GỌI THOẠI & VIDEO (CALL SIGNALING)
   if (pathname === '/api/call-signal' && req.method === 'POST') {
     try {
       const signalData = await parseJsonBody(req);
-      // Phát sóng tín hiệu cuộc gọi tới tất cả các máy khác trong mạng
-      broadcastEvent('call_signal', signalData);
+      const targetUser = (signalData.to || '').toLowerCase().trim();
+      const payload = `data: ${JSON.stringify({ type: 'call_signal', data: signalData })}\n\n`;
+
+      let sentDirectly = false;
+      clients.forEach(c => {
+        if (!c.res) return;
+        // Không gửi lại cho chính người gửi
+        if (c.username && c.username.toLowerCase() === (signalData.from || '').toLowerCase()) return;
+
+        // Ưu tiên gửi trực tiếp tới máy đích danh nếu match username
+        if (targetUser && c.username && c.username.toLowerCase() === targetUser) {
+          try {
+            c.res.write(payload);
+            sentDirectly = true;
+          } catch (e) {}
+        }
+      });
+
+      // Nếu không gửi trúng đích danh, phát sóng tới tất cả các máy khác để đảm bảo không bị thất lạc tín hiệu
+      if (!sentDirectly) {
+        clients.forEach(c => {
+          if (!c.res) return;
+          if (c.username && c.username.toLowerCase() === (signalData.from || '').toLowerCase()) return;
+          try { c.res.write(payload); } catch (e) {}
+        });
+      }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'sent' }));
