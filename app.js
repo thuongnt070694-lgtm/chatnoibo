@@ -3834,6 +3834,83 @@ function showToast(message) {
   }
 }
 
+// Xử lý dán ảnh từ bộ nhớ tạm (Clipboard / Ảnh chụp màn hình qua Ctrl + V)
+function handleClipboardPaste(e) {
+  const clipboardData = e.clipboardData || window.clipboardData;
+  if (!clipboardData) return;
+
+  // Nếu người dùng đang thao tác trong ô tìm kiếm hoặc modal thì không chặn
+  const activeEl = document.activeElement;
+  if (activeEl && (activeEl.id === "searchInput" || activeEl.closest(".modal-overlay") || activeEl.closest(".lightbox-modal"))) {
+    return;
+  }
+
+  const items = clipboardData.items;
+  let imageFile = null;
+
+  if (items && items.length > 0) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type && item.type.startsWith("image/")) {
+        const blob = item.getAsFile();
+        if (blob) {
+          imageFile = blob;
+          break;
+        }
+      }
+    }
+  }
+
+  // Dự phòng kiểm tra clipboardData.files
+  if (!imageFile && clipboardData.files && clipboardData.files.length > 0) {
+    for (let i = 0; i < clipboardData.files.length; i++) {
+      const f = clipboardData.files[i];
+      if (f.type && f.type.startsWith("image/")) {
+        imageFile = f;
+        break;
+      }
+    }
+  }
+
+  // Nếu tìm thấy hình ảnh (ví dụ: vừa nhấn PrintScreen / Snipping Tool / Ctrl+V ảnh)
+  if (imageFile) {
+    e.preventDefault(); // Ngăn trình duyệt dán chuỗi nhị phân hoặc hành vi mặc định
+
+    // Tạo tên file ý nghĩa kèm mốc thời gian
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const dateStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+    const timeStr = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    let ext = "png";
+    if (imageFile.type === "image/jpeg") ext = "jpg";
+    else if (imageFile.type === "image/webp") ext = "webp";
+
+    const customName = `Screenshot_${dateStr}_${timeStr}.${ext}`;
+    const normalizedFile = new File([imageFile], customName, { type: imageFile.type || "image/png" });
+    const formattedSize = formatFileSize(normalizedFile.size);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      pendingAttachment = {
+        file: normalizedFile,
+        type: "image",
+        url: event.target.result,
+        name: customName,
+        size: formattedSize,
+        ext: ext
+      };
+      showAttachmentPreview(pendingAttachment);
+      showToast("📷 Đã dán ảnh chụp màn hình! Nhấn Enter hoặc nút Gửi để gửi");
+
+      const msgInput = document.getElementById("messageInput");
+      if (msgInput) {
+        msgInput.focus();
+      }
+    };
+    reader.readAsDataURL(normalizedFile);
+  }
+}
+
 function setupEventListeners() {
   const btnSend = document.getElementById("btnSendMessage");
   const input = document.getElementById("messageInput");
@@ -3852,7 +3929,17 @@ function setupEventListeners() {
       this.style.height = (this.scrollHeight) + "px";
       handleTypingInput();
     });
+
+    // Bắt sự kiện Ctrl + V dán ảnh trực tiếp trong ô gõ tin nhắn
+    input.addEventListener("paste", handleClipboardPaste);
   }
+
+  // Bắt cả sự kiện Ctrl + V khi người dùng chụp ảnh xong bấm dán trong khung chat
+  window.addEventListener("paste", (e) => {
+    if (e.target !== input) {
+      handleClipboardPaste(e);
+    }
+  });
 
   // Các nút điều khiển ghi âm giọng nói trực tiếp
   document.getElementById("btnVoiceMsg")?.addEventListener("click", startVoiceRecording);
