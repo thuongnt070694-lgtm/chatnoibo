@@ -48,6 +48,38 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Kiểm tra phiên đăng nhập đã lưu
   checkExistingSession();
+
+  // Lắng nghe sự kiện người dùng quay lại tab chat để tự động đánh dấu đã đọc
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === 'visible' && currentUserId) {
+      const activeUser = internalUsers.find(u => u.id === currentUserId);
+      if (activeUser && activeUser.unreadCount > 0) {
+        activeUser.unreadCount = 0;
+        setLastReadTime(activeUser.id, Date.now());
+        renderUserList();
+        updateGlobalUnreadBadge();
+      }
+      clearTabTitleAlert();
+    }
+  });
+
+  window.addEventListener("focus", () => {
+    if (currentUserId) {
+      const activeUser = internalUsers.find(u => u.id === currentUserId);
+      if (activeUser && activeUser.unreadCount > 0) {
+        activeUser.unreadCount = 0;
+        setLastReadTime(activeUser.id, Date.now());
+        renderUserList();
+        updateGlobalUnreadBadge();
+      }
+      clearTabTitleAlert();
+    }
+  });
+
+  // Tự động xin quyền hiển thị thông báo màn hình khi người dùng chạm vào trang
+  document.addEventListener("click", () => {
+    requestNotificationPermission();
+  }, { once: true });
 });
 
 // ==========================================
@@ -211,6 +243,144 @@ function renderCurrentUserUI() {
 // 4. TẢI DANH BẠ ĐỒNG NGHIỆP & LỊCH SỬ TIN NHẮN TỪ MÁY CHỦ
 // ==========================================
 
+// Quản lý mốc thời gian đọc tin nhắn và thông báo chưa đọc
+function getLastReadTime(convId) {
+  if (!convId || !currentUser) return 0;
+  const key = `chatexcel_read_${(currentUser.username || '').toLowerCase()}_${convId}`;
+  const val = localStorage.getItem(key);
+  return val ? parseInt(val, 10) : 0;
+}
+
+function setLastReadTime(convId, timestamp = Date.now()) {
+  if (!convId || !currentUser) return;
+  const key = `chatexcel_read_${(currentUser.username || '').toLowerCase()}_${convId}`;
+  localStorage.setItem(key, String(timestamp));
+}
+
+function getMessageTimestamp(msg) {
+  if (!msg) return 0;
+  if (msg.timestamp && typeof msg.timestamp === 'number') return msg.timestamp;
+  if (msg.createdAt) {
+    const t = new Date(msg.createdAt).getTime();
+    if (!isNaN(t)) return t;
+  }
+  if (msg.id && typeof msg.id === 'string') {
+    const match = msg.id.match(/^msg_(\d+)/);
+    if (match) return parseInt(match[1], 10);
+  }
+  return 0;
+}
+
+// 1. Âm thanh chuông báo có tin nhắn mới nhẹ nhàng (Web Audio API)
+function playNotificationChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(783.99, now); // Nốt Sol
+    osc.frequency.exponentialRampToValueAtTime(1046.50, now + 0.12); // Nốt Đô cao
+
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.35);
+
+    setTimeout(() => {
+      try { ctx.close(); } catch (e) {}
+    }, 400);
+  } catch (e) {}
+}
+
+// 2. Nhấp nháy tiêu đề Tab trình duyệt khi có tin nhắn chưa đọc
+let tabTitleInterval = null;
+const originalDocTitle = "Hệ Thống Chat Nội Bộ - Enterprise Internal Chat";
+
+function triggerTabTitleAlert(senderName) {
+  const totalUnread = internalUsers.reduce((sum, u) => sum + (u.unreadCount || 0), 0);
+  if (totalUnread <= 0) {
+    clearTabTitleAlert();
+    return;
+  }
+
+  if (tabTitleInterval) clearInterval(tabTitleInterval);
+
+  let toggle = false;
+  tabTitleInterval = setInterval(() => {
+    if (document.visibilityState === 'visible' && !internalUsers.some(u => u.unreadCount > 0)) {
+      clearTabTitleAlert();
+      return;
+    }
+    document.title = toggle
+      ? `(${totalUnread}) 📩 Tin nhắn mới từ ${senderName || 'đồng nghiệp'}!`
+      : `🔔 (${totalUnread} tin chưa đọc) - Chat Nội Bộ`;
+    toggle = !toggle;
+  }, 1400);
+}
+
+function clearTabTitleAlert() {
+  if (tabTitleInterval) {
+    clearInterval(tabTitleInterval);
+    tabTitleInterval = null;
+  }
+  const totalUnread = internalUsers.reduce((sum, u) => sum + (u.unreadCount || 0), 0);
+  if (totalUnread > 0) {
+    document.title = `(${totalUnread}) 📩 Chat Nội Bộ`;
+  } else {
+    document.title = originalDocTitle;
+  }
+}
+
+// 3. Cập nhật huy hiệu đỏ tổng số tin chưa đọc trên nút Menu Trái
+function updateGlobalUnreadBadge() {
+  const totalUnread = internalUsers.reduce((sum, u) => sum + (u.unreadCount || 0), 0);
+  const badgeEl = document.getElementById("menuUnreadBadge");
+  if (badgeEl) {
+    if (totalUnread > 0) {
+      badgeEl.innerText = totalUnread > 99 ? "99+" : totalUnread;
+      badgeEl.style.display = "inline-flex";
+    } else {
+      badgeEl.style.display = "none";
+    }
+  }
+}
+
+// 4. Thông báo màn hình Desktop Notification
+function requestNotificationPermission() {
+  try {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+  } catch (e) {}
+}
+
+function showDesktopNotification(senderName, text) {
+  try {
+    if (!("Notification" in window)) return;
+    if (Notification.permission === "granted" && document.visibilityState !== "visible") {
+      const notif = new Notification(`💬 ${senderName}`, {
+        body: text || "Đã gửi cho bạn một tin nhắn mới",
+        icon: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(senderName)}`,
+        tag: "chatexcel-msg",
+        renotify: true
+      });
+      notif.onclick = () => {
+        window.focus();
+        notif.close();
+      };
+      setTimeout(() => notif.close(), 6000);
+    }
+  } catch (e) {}
+}
+
 function getMsgCacheKey() {
   return currentUser ? ("chatexcel_cached_msgs_" + (currentUser.username || "").toLowerCase().trim()) : null;
 }
@@ -334,6 +504,7 @@ function hydrateMessagesIntoConversations(msgs) {
 
     const formattedMsg = {
       id: m.id || ('msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)),
+      timestamp: m.timestamp || getMessageTimestamp(m) || Date.now(),
       sender: senderType,
       senderName: isMe ? currentUser.fullName : (m.senderName || targetConv.name || targetConv.username),
       senderUsername: m.senderUsername || (isMe ? currentUser.username : targetConv.username),
@@ -381,6 +552,22 @@ function hydrateMessagesIntoConversations(msgs) {
     }
   });
 
+  // Cập nhật số tin nhắn chưa đọc cho từng cuộc trò chuyện
+  internalUsers.forEach(u => {
+    if (u.id === currentUserId && document.visibilityState === 'visible') {
+      u.unreadCount = 0;
+      setLastReadTime(u.id, Date.now());
+    } else {
+      const lastRead = getLastReadTime(u.id);
+      if (lastRead === 0) {
+        setLastReadTime(u.id, Date.now());
+        u.unreadCount = 0;
+      } else {
+        u.unreadCount = u.messages.filter(m => m.sender !== 'me' && (m.timestamp || getMessageTimestamp(m)) > lastRead).length;
+      }
+    }
+  });
+
   // Cập nhật giao diện nếu đang mở cuộc trò chuyện
   if (currentUserId) {
     const activeUser = internalUsers.find(u => u.id === currentUserId);
@@ -390,6 +577,11 @@ function hydrateMessagesIntoConversations(msgs) {
     }
   }
   renderUserList();
+  updateGlobalUnreadBadge();
+  const totalUnread = internalUsers.reduce((sum, u) => sum + (u.unreadCount || 0), 0);
+  if (totalUnread > 0) {
+    triggerTabTitleAlert();
+  }
 }
 
 async function loadMessagesHistory() {
@@ -623,21 +815,26 @@ function renderUserList() {
     }
 
     const isActive = user.id === currentUserId ? "active" : "";
-    const unreadBadge = user.unreadCount > 0 ? `<span class="user-card-badge">${user.unreadCount}</span>` : "";
+    const hasUnread = (user.unreadCount || 0) > 0;
+    const unreadClass = hasUnread ? "has-unread" : "";
+    const unreadBadgeText = (user.unreadCount > 99) ? "99+" : user.unreadCount;
+    const unreadBadge = hasUnread ? `<span class="user-card-badge">${unreadBadgeText}</span>` : "";
+    const unreadDot = hasUnread ? `<span class="avatar-unread-dot"></span>` : "";
 
     return `
-      <div class="user-item-card ${isActive}" onclick="selectUser('${user.id}')" data-id="${user.id}">
+      <div class="user-item-card ${isActive} ${unreadClass}" onclick="selectUser('${user.id}')" data-id="${user.id}">
         <div class="user-card-avatar">
           <img src="${user.avatar}" alt="${user.name}" class="avatar-img">
           <span class="status-indicator status-${user.status}"></span>
+          ${unreadDot}
         </div>
         <div class="user-card-info">
           <div class="user-card-top">
             <span class="user-card-name">${escapeHtml(user.name)}</span>
-            <span class="user-card-time">${lastMsgTime}</span>
+            <span class="user-card-time ${hasUnread ? 'unread-time' : ''}">${lastMsgTime}</span>
           </div>
           <div class="user-card-sub">
-            <span class="user-card-msg">${escapeHtml(lastMsgText)}</span>
+            <span class="user-card-msg ${hasUnread ? 'unread-msg' : ''}">${escapeHtml(lastMsgText)}</span>
             ${unreadBadge}
           </div>
           <div>
@@ -649,6 +846,7 @@ function renderUserList() {
   }).join("");
 
   updateLiveStats();
+  updateGlobalUnreadBadge();
 }
 
 function updateLiveStats() {
@@ -712,6 +910,9 @@ function selectUser(userId) {
 
   currentUserId = userId;
   user.unreadCount = 0;
+  setLastReadTime(userId, Date.now());
+  updateGlobalUnreadBadge();
+  clearTabTitleAlert();
   try {
     localStorage.setItem("chatexcel_last_active_conv", userId);
   } catch (e) {}
@@ -730,6 +931,7 @@ function selectUser(userId) {
   renderMiddleChatHeader(user);
   renderMessages(user);
   renderRightPanelDetails(user);
+  renderUserList();
 
   if (user.isGroup) {
     renderGroupMembers();
@@ -1149,6 +1351,11 @@ function sendMessage() {
     input.value = "";
     input.style.height = "auto";
   }
+
+  user.unreadCount = 0;
+  setLastReadTime(currentUserId, Date.now());
+  clearTabTitleAlert();
+  updateGlobalUnreadBadge();
 
   renderMessages(user);
   renderUserList();
@@ -2729,14 +2936,26 @@ function initRealtimeSSE() {
                 }
               }
 
-              if (currentUserId === targetConversation.id) {
+              const isCurrentlyActive = (currentUserId === targetConversation.id) && (document.visibilityState === 'visible');
+
+              if (isCurrentlyActive) {
+                targetConversation.unreadCount = 0;
+                setLastReadTime(targetConversation.id, Date.now());
                 renderMessages(targetConversation);
                 renderRightPanelDetails(targetConversation);
               } else {
                 targetConversation.unreadCount = (targetConversation.unreadCount || 0) + 1;
+                if (!isMe) {
+                  playNotificationChime();
+                  showDesktopNotification(newReceivedMsg.senderName, newReceivedMsg.text || (newReceivedMsg.type === 'image' ? '[Hình ảnh]' : '[Tệp đính kèm]'));
+                  triggerTabTitleAlert(targetConversation.name || newReceivedMsg.senderName);
+                }
               }
               renderUserList();
-              showToast(`📩 Tin nhắn mới từ ${msg.senderName}!`);
+              updateGlobalUnreadBadge();
+              if (!isMe) {
+                showToast(`📩 Tin nhắn mới từ ${msg.senderName}!`);
+              }
             }
           }
         }
