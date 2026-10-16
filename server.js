@@ -972,6 +972,97 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // 6.1.2 THẢ CẢM XÚC (REACTION) VÀO TIN NHẮN
+  if (pathname === '/api/message/react' && req.method === 'POST') {
+    try {
+      const { messageId, emoji, username, fullName } = await parseJsonBody(req);
+      if (!messageId || !emoji || !username) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Thiếu thông tin biểu cảm' }));
+        return;
+      }
+
+      const targetMsg = messagesHistory.find(m => m.id === messageId);
+      if (!targetMsg) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Không tìm thấy tin nhắn' }));
+        return;
+      }
+
+      if (!targetMsg.reactions || typeof targetMsg.reactions !== 'object') {
+        targetMsg.reactions = {};
+      }
+
+      const uname = (username || '').toLowerCase().trim();
+      const userDisplayName = fullName || uname;
+
+      // Chuẩn hóa reactions: mỗi user chỉ giữ 1 biểu cảm cho 1 tin nhắn
+      let alreadyHadThisEmoji = false;
+      Object.keys(targetMsg.reactions).forEach(e => {
+        if (!Array.isArray(targetMsg.reactions[e])) return;
+        const exists = targetMsg.reactions[e].some(u => (typeof u === 'string' ? u : (u.username || '')).toLowerCase() === uname);
+        if (exists) {
+          if (e === emoji) {
+            alreadyHadThisEmoji = true;
+          }
+          // Gỡ bỏ biểu cảm cũ
+          targetMsg.reactions[e] = targetMsg.reactions[e].filter(u => (typeof u === 'string' ? u : (u.username || '')).toLowerCase() !== uname);
+          if (targetMsg.reactions[e].length === 0) {
+            delete targetMsg.reactions[e];
+          }
+        }
+      });
+
+      // Nếu trước đó chưa thả emoji này -> thêm mới
+      if (!alreadyHadThisEmoji) {
+        if (!Array.isArray(targetMsg.reactions[emoji])) {
+          targetMsg.reactions[emoji] = [];
+        }
+        targetMsg.reactions[emoji].push({ username: uname, fullName: userDisplayName });
+      }
+
+      saveMessages();
+
+      const reactPayload = {
+        messageId: targetMsg.id,
+        reactions: targetMsg.reactions,
+        isGroup: !!targetMsg.isGroup,
+        targetUsername: targetMsg.targetUsername,
+        senderUsername: targetMsg.senderUsername,
+        targetId: targetMsg.targetId
+      };
+
+      // Phát realtime qua SSE tới các client liên quan
+      if (targetMsg.isGroup) {
+        const groupMemberSet = new Set((groupInfo.members || []).map(m => (m || '').toLowerCase().trim()));
+        const payloadStr = `data: ${JSON.stringify({ type: 'message_reaction', data: reactPayload })}\n\n`;
+        clients.forEach(c => {
+          if (c.username && groupMemberSet.has((c.username || '').toLowerCase().trim())) {
+            try { c.res.write(payloadStr); } catch (err) {}
+          }
+        });
+      } else {
+        const s = (targetMsg.senderUsername || '').toLowerCase().trim();
+        const t = (targetMsg.targetUsername || (targetMsg.targetId ? targetMsg.targetId.replace(/^u_/, '') : '') || '').toLowerCase().trim();
+        const payloadStr = `data: ${JSON.stringify({ type: 'message_reaction', data: reactPayload })}\n\n`;
+        clients.forEach(c => {
+          const u = (c.username || '').toLowerCase().trim();
+          if (u === s || u === t) {
+            try { c.res.write(payloadStr); } catch (err) {}
+          }
+        });
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', reactions: targetMsg.reactions }));
+    } catch (err) {
+      console.error("Lỗi react tin nhắn:", err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Lỗi máy chủ' }));
+    }
+    return;
+  }
+
   // 6.2 XÓA LỊCH SỬ TIN NHẮN CUỘC TRÒ CHUYỆN
   if (pathname === '/api/messages/clear' && req.method === 'POST') {
     try {

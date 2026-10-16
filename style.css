@@ -873,8 +873,10 @@ body.theme-dark .user-item-card.has-unread {
 /* Hàng tin nhắn (Message row) */
 .message-row {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   max-width: 78%;
+  position: relative;
+  align-items: flex-end;
 }
 .message-row.sent {
   align-self: flex-end;
@@ -1104,6 +1106,326 @@ body.theme-dark .voice-progress-track {
 }
 .voice-download-link:hover {
   opacity: 1;
+}
+
+/* ==========================================================================
+   TÍNH NĂNG: REACTION CẢM XÚC & TRÍCH DẪN TRẢ LỜI TIN NHẮN (REPLY / QUOTE)
+   ========================================================================== */
+
+/* Thanh nút thao tác khi hover vào hàng tin nhắn (React & Reply) */
+.msg-actions-toolbar {
+  display: none;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+  z-index: 10;
+  align-self: center;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease;
+}
+
+.message-row:hover .msg-actions-toolbar,
+.message-row.active-picker .msg-actions-toolbar {
+  display: flex;
+}
+
+.msg-action-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.15s ease;
+}
+
+.msg-action-btn:hover {
+  background: var(--bg-hover);
+  color: var(--brand-primary);
+  transform: scale(1.1);
+}
+
+/* Khay chọn cảm xúc nổi (Reaction Picker Popup) */
+.reaction-btn-wrapper {
+  position: relative;
+}
+
+.msg-reaction-picker {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  padding: 4px 8px;
+  gap: 6px;
+  box-shadow: var(--shadow-md);
+  z-index: 120;
+  white-space: nowrap;
+  animation: pickerPop 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes pickerPop {
+  0% { transform: translateX(-50%) scale(0.7); opacity: 0; }
+  100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+
+.reaction-btn-wrapper:hover .msg-reaction-picker,
+.msg-reaction-picker.show {
+  display: flex;
+  align-items: center;
+}
+
+.react-opt {
+  font-size: 19px;
+  cursor: pointer;
+  padding: 2px 3px;
+  border-radius: 50%;
+  transition: transform 0.15s ease;
+  user-select: none;
+  line-height: 1;
+}
+
+.react-opt:hover {
+  transform: scale(1.35) translateY(-2px);
+}
+
+/* Thanh hiển thị các reaction dưới bong bóng tin nhắn */
+.msg-reactions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: -8px;
+  z-index: 2;
+  position: relative;
+}
+
+.message-row.sent .msg-reactions-bar {
+  justify-content: flex-end;
+  margin-right: 4px;
+}
+
+.message-row.received .msg-reactions-bar {
+  justify-content: flex-start;
+  margin-left: 4px;
+}
+
+.msg-reaction-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  padding: 1px 7px;
+  font-size: 11.5px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.msg-reaction-pill:hover {
+  background: var(--bg-hover);
+  transform: scale(1.05);
+}
+
+.msg-reaction-pill.active {
+  background: rgba(30, 77, 140, 0.12);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+  font-weight: 600;
+}
+
+body.theme-dark .msg-reaction-pill.active {
+  background: rgba(67, 137, 245, 0.22);
+  border-color: #60a5fa;
+  color: #93c5fd;
+}
+
+.reaction-emoji {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.reaction-count {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Khối trích dẫn tin nhắn đã trả lời nằm trong bong bóng chat */
+.msg-reply-quote {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  max-width: 100%;
+  overflow: hidden;
+  user-select: none;
+}
+
+body.theme-dark .msg-reply-quote {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.message-row.sent .msg-reply-quote {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.msg-reply-quote:hover {
+  background: rgba(0, 0, 0, 0.09);
+}
+
+.message-row.sent .msg-reply-quote:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.reply-quote-bar {
+  width: 3px;
+  border-radius: 2px;
+  background: var(--brand-primary);
+  flex-shrink: 0;
+}
+
+.message-row.sent .reply-quote-bar {
+  background: #ffffff;
+}
+
+.reply-quote-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.reply-quote-sender {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--brand-primary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.message-row.sent .reply-quote-sender {
+  color: #ffffff;
+}
+
+.reply-quote-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.9;
+}
+
+.message-row.sent .reply-quote-text {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Thanh xem trước tin nhắn đang trả lời (nằm trên input bar) */
+.reply-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--bg-hover);
+  border-top: 1px solid var(--border-color);
+  border-left: 4px solid var(--brand-primary);
+  animation: slideDown 0.15s ease;
+}
+
+.reply-preview-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.reply-preview-icon {
+  font-size: 15px;
+  color: var(--brand-primary);
+  flex-shrink: 0;
+}
+
+.reply-preview-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.reply-preview-sender {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand-primary);
+}
+
+.reply-preview-text {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-cancel-reply {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.btn-cancel-reply:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--danger-color);
+}
+
+/* Hiệu ứng nhấp nháy phát sáng khi bấm nhảy tới tin nhắn gốc */
+@keyframes highlightFlash {
+  0% {
+    background-color: rgba(30, 77, 140, 0.28);
+    box-shadow: 0 0 0 3px rgba(30, 77, 140, 0.4);
+  }
+  50% {
+    background-color: rgba(30, 77, 140, 0.14);
+    box-shadow: 0 0 0 2px rgba(30, 77, 140, 0.2);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+.message-row.highlight-flash .msg-bubble {
+  animation: highlightFlash 1.6s ease;
 }
 
 /* ==========================================

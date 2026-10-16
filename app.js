@@ -18,6 +18,7 @@ let pendingAttachment = null;
 let tempNewAvatarData = null;
 let allSystemUsers = []; // Tất cả người dùng trong công ty
 let currentGroupData = null; // Dữ liệu phân quyền và thành viên nhóm chat chung
+let replyingToMessage = null; // Tin nhắn đang được trích dẫn để trả lời (Reply/Quote)
 
 // Quản lý Cuộc Gọi (WebRTC + MediaDevices + Audio)
 let activeCall = {
@@ -547,7 +548,9 @@ function hydrateMessagesIntoConversations(msgs) {
       duration: m.duration,
       durationText: m.durationText,
       time: m.time || '',
-      status: m.status || 'seen'
+      status: m.status || 'seen',
+      replyTo: m.replyTo || null,
+      reactions: (m.reactions && typeof m.reactions === 'object') ? m.reactions : {}
     };
 
     targetConv.messages.push(formattedMsg);
@@ -1139,18 +1142,62 @@ function renderMessages(user) {
       ? `<span class="msg-sender-name">${escapeHtml(msg.senderName)}</span>`
       : "";
 
+    // Trích dẫn tin nhắn trả lời (Quoted Reply)
+    let replyQuoteHtml = "";
+    if (msg.replyTo) {
+      const rSender = escapeHtml(msg.replyTo.senderName || msg.replyTo.senderUsername || "Tin nhắn");
+      let rSnippet = msg.replyTo.text || "";
+      if (!rSnippet) {
+        if (msg.replyTo.type === "image") rSnippet = "📷 [Hình ảnh]";
+        else if (msg.replyTo.type === "file") rSnippet = "📎 [Tệp tin]";
+        else if (msg.replyTo.type === "voice" || msg.replyTo.type === "audio") rSnippet = "🎤 [Tin nhắn thoại]";
+      }
+      replyQuoteHtml = `
+        <div class="msg-reply-quote" onclick="jumpToMessage('${msg.replyTo.id}')" title="Nhấp để xem tin nhắn gốc">
+          <div class="reply-quote-bar"></div>
+          <div class="reply-quote-content">
+            <span class="reply-quote-sender"><i class="fa-solid fa-reply"></i> ${rSender}</span>
+            <span class="reply-quote-text">${escapeHtml(rSnippet)}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    const reactionsHtml = renderReactionsHtml(msg.reactions, msg.id);
+
     html += `
-      <div class="message-row ${isMe ? 'sent' : 'received'}">
+      <div class="message-row ${isMe ? 'sent' : 'received'}" id="msg_row_${msg.id}" data-id="${msg.id}">
         <img src="${senderAvatar}" alt="Avatar" class="msg-sender-avatar">
         <div class="msg-bubble-wrap">
           ${senderHeader}
           <div class="msg-bubble">
+            ${replyQuoteHtml}
             ${contentHtml}
             <div class="msg-meta">
               <span>${msg.time || "Vừa xong"}</span>
               ${isMe ? '<i class="fa-solid fa-check seen-check"></i>' : ''}
             </div>
           </div>
+          ${reactionsHtml}
+        </div>
+        <!-- Thanh nút thao tác khi rê chuột: Thả cảm xúc & Trả lời -->
+        <div class="msg-actions-toolbar">
+          <div class="reaction-btn-wrapper">
+            <button class="msg-action-btn" title="Thả biểu cảm" onclick="toggleReactionPicker(event, '${msg.id}')">
+              <i class="fa-regular fa-face-smile"></i>
+            </button>
+            <div class="msg-reaction-picker" id="reaction_picker_${msg.id}">
+              <span class="react-opt" onclick="reactToMessage(event, '${msg.id}', '👍')">👍</span>
+              <span class="react-opt" onclick="reactToMessage(event, '${msg.id}', '❤️')">❤️</span>
+              <span class="react-opt" onclick="reactToMessage(event, '${msg.id}', '😂')">😂</span>
+              <span class="react-opt" onclick="reactToMessage(event, '${msg.id}', '😮')">😮</span>
+              <span class="react-opt" onclick="reactToMessage(event, '${msg.id}', '😢')">😢</span>
+              <span class="react-opt" onclick="reactToMessage(event, '${msg.id}', '😡')">😡</span>
+            </div>
+          </div>
+          <button class="msg-action-btn" title="Trả lời tin nhắn này" onclick="startReplyMessage('${msg.id}')">
+            <i class="fa-solid fa-reply"></i>
+          </button>
         </div>
       </div>
     `;
@@ -1163,6 +1210,235 @@ function renderMessages(user) {
 function scrollChatToBottom() {
   const area = document.getElementById("messagesArea");
   if (area) area.scrollTop = area.scrollHeight;
+}
+
+// ==========================================
+// TÍNH NĂNG CẢM XÚC (REACTION) & TRẢ LỜI TIN NHẮN (REPLY)
+// ==========================================
+
+function renderReactionsHtml(reactions, msgId) {
+  if (!reactions || typeof reactions !== "object") return "";
+  const emojis = Object.keys(reactions).filter(e => Array.isArray(reactions[e]) && reactions[e].length > 0);
+  if (emojis.length === 0) return "";
+
+  const myUsername = (currentUser?.username || '').toLowerCase();
+
+  let html = `<div class="msg-reactions-bar" id="reactions_bar_${msgId}">`;
+  emojis.forEach(emoji => {
+    const userList = reactions[emoji];
+    const count = userList.length;
+    const hasMyReaction = userList.some(u => (typeof u === 'string' ? u : (u.username || '')).toLowerCase() === myUsername);
+    
+    const names = userList.map(u => {
+      if (typeof u === 'object' && u.fullName) return u.fullName;
+      const uname = typeof u === 'string' ? u : (u.username || '');
+      const acc = allSystemUsers.find(a => (a.username || '').toLowerCase() === uname.toLowerCase());
+      return acc ? acc.fullName : uname;
+    }).join(", ");
+
+    html += `
+      <button class="msg-reaction-pill ${hasMyReaction ? 'active' : ''}" 
+              onclick="reactToMessage(event, '${msgId}', '${emoji}')" 
+              title="${names ? escapeHtml(names) : ''}">
+        <span class="reaction-emoji">${emoji}</span>
+        <span class="reaction-count">${count}</span>
+      </button>
+    `;
+  });
+  html += `</div>`;
+  return html;
+}
+
+function toggleReactionPicker(e, msgId) {
+  if (e) e.stopPropagation();
+  document.querySelectorAll(".msg-reaction-picker.show").forEach(p => {
+    if (p.id !== "reaction_picker_" + msgId) p.classList.remove("show");
+  });
+  const picker = document.getElementById("reaction_picker_" + msgId);
+  if (picker) {
+    picker.classList.toggle("show");
+  }
+}
+
+async function reactToMessage(e, msgId, emoji) {
+  if (e) e.stopPropagation();
+  const picker = document.getElementById("reaction_picker_" + msgId);
+  if (picker) picker.classList.remove("show");
+
+  if (!currentUser) return;
+
+  let targetMsg = null;
+  for (const u of internalUsers) {
+    if (u.messages) {
+      targetMsg = u.messages.find(m => m.id === msgId);
+      if (targetMsg) break;
+    }
+  }
+
+  if (targetMsg) {
+    if (!targetMsg.reactions || typeof targetMsg.reactions !== "object") {
+      targetMsg.reactions = {};
+    }
+    const myUname = (currentUser.username || "").toLowerCase().trim();
+    const myFullName = currentUser.fullName || myUname;
+
+    let alreadyHad = false;
+    Object.keys(targetMsg.reactions).forEach(em => {
+      if (!Array.isArray(targetMsg.reactions[em])) return;
+      const exists = targetMsg.reactions[em].some(u => (typeof u === "string" ? u : (u.username || "")).toLowerCase() === myUname);
+      if (exists) {
+        if (em === emoji) alreadyHad = true;
+        targetMsg.reactions[em] = targetMsg.reactions[em].filter(u => (typeof u === "string" ? u : (u.username || "")).toLowerCase() !== myUname);
+        if (targetMsg.reactions[em].length === 0) delete targetMsg.reactions[em];
+      }
+    });
+
+    if (!alreadyHad) {
+      if (!Array.isArray(targetMsg.reactions[emoji])) {
+        targetMsg.reactions[emoji] = [];
+      }
+      targetMsg.reactions[emoji].push({ username: myUname, fullName: myFullName });
+    }
+
+    updateMessageReactionsDOM(msgId, targetMsg.reactions);
+    updateLocalMessageReactions(msgId, targetMsg.reactions);
+  }
+
+  try {
+    const res = await fetch("/api/message/react", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messageId: msgId,
+        emoji: emoji,
+        username: currentUser.username,
+        fullName: currentUser.fullName
+      })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.reactions && targetMsg) {
+        targetMsg.reactions = data.reactions;
+        updateMessageReactionsDOM(msgId, targetMsg.reactions);
+        updateLocalMessageReactions(msgId, targetMsg.reactions);
+      }
+    }
+  } catch (err) {
+    console.error("Lỗi gửi biểu cảm:", err);
+  }
+}
+
+function updateMessageReactionsDOM(msgId, reactions) {
+  const row = document.getElementById("msg_row_" + msgId);
+  if (!row) return;
+
+  const bubbleWrap = row.querySelector(".msg-bubble-wrap");
+  if (!bubbleWrap) return;
+
+  let existingBar = row.querySelector(".msg-reactions-bar");
+  const newHtml = renderReactionsHtml(reactions, msgId);
+
+  if (!newHtml) {
+    if (existingBar) existingBar.remove();
+    return;
+  }
+
+  if (existingBar) {
+    const temp = document.createElement("div");
+    temp.innerHTML = newHtml;
+    existingBar.replaceWith(temp.firstElementChild);
+  } else {
+    bubbleWrap.insertAdjacentHTML("beforeend", newHtml);
+  }
+}
+
+function updateLocalMessageReactions(msgId, reactions) {
+  const cacheKey = getMsgCacheKey();
+  if (!cacheKey || !msgId) return;
+  try {
+    const raw = localStorage.getItem(cacheKey);
+    let list = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(list)) list = [];
+    const idx = list.findIndex(m => m.id === msgId);
+    if (idx !== -1) {
+      list[idx].reactions = reactions;
+      localStorage.setItem(cacheKey, JSON.stringify(list));
+    }
+  } catch (e) {}
+}
+
+function startReplyMessage(msgId) {
+  let foundMsg = null;
+  for (const u of internalUsers) {
+    if (u.messages) {
+      foundMsg = u.messages.find(m => m.id === msgId);
+      if (foundMsg) break;
+    }
+  }
+  if (!foundMsg) return;
+
+  let snippet = "";
+  if (foundMsg.type === "image") {
+    snippet = foundMsg.caption ? `📷 [Hình ảnh] ${foundMsg.caption}` : "📷 [Hình ảnh]";
+  } else if (foundMsg.type === "file") {
+    snippet = `📎 [Tệp tin] ${foundMsg.fileName || "Tệp đính kèm"}`;
+  } else if (foundMsg.type === "voice" || foundMsg.type === "audio") {
+    snippet = "🎤 [Tin nhắn thoại]";
+  } else {
+    snippet = foundMsg.text || "";
+  }
+  if (snippet.length > 90) snippet = snippet.substring(0, 87) + "...";
+
+  let senderDisplayName = "Tin nhắn";
+  if (foundMsg.sender === "me") {
+    senderDisplayName = "Chính bạn";
+  } else if (foundMsg.senderName) {
+    senderDisplayName = foundMsg.senderName;
+  } else if (foundMsg.senderUsername) {
+    senderDisplayName = foundMsg.senderUsername;
+  }
+
+  replyingToMessage = {
+    id: foundMsg.id,
+    senderName: senderDisplayName,
+    senderUsername: foundMsg.senderUsername,
+    text: snippet,
+    type: foundMsg.type
+  };
+
+  const replyBar = document.getElementById("replyPreviewBar");
+  const replySender = document.getElementById("replyPreviewSender");
+  const replyText = document.getElementById("replyPreviewText");
+
+  if (replyBar && replySender && replyText) {
+    replySender.innerText = `Đang trả lời ${replyingToMessage.senderName}`;
+    replyText.innerText = replyingToMessage.text;
+    replyBar.style.display = "flex";
+  }
+
+  const msgInput = document.getElementById("messageInput");
+  if (msgInput) {
+    msgInput.focus();
+  }
+}
+
+function cancelReply() {
+  replyingToMessage = null;
+  const replyBar = document.getElementById("replyPreviewBar");
+  if (replyBar) replyBar.style.display = "none";
+}
+
+function jumpToMessage(msgId) {
+  const el = document.getElementById("msg_row_" + msgId);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('highlight-flash');
+    setTimeout(() => {
+      el.classList.remove('highlight-flash');
+    }, 1800);
+  } else {
+    showToast("ℹ️ Tin nhắn gốc ở xa hoặc đã quá cũ trong cuộc hội thoại.");
+  }
 }
 
 // ==========================================
@@ -1706,8 +1982,20 @@ async function sendVoiceRecording() {
         fileName: voiceFilename,
         fileSize: uploadResult.fileSize,
         time: timeStr,
-        status: "sent"
+        status: "sent",
+        reactions: {}
       };
+
+      if (replyingToMessage) {
+        voiceMsg.replyTo = {
+          id: replyingToMessage.id,
+          senderName: replyingToMessage.senderName,
+          senderUsername: replyingToMessage.senderUsername,
+          text: replyingToMessage.text,
+          type: replyingToMessage.type
+        };
+        cancelReply();
+      }
 
       user.messages.push(voiceMsg);
       user.unreadCount = 0;
@@ -1866,6 +2154,20 @@ async function sendMessage() {
         user.sharedLinks.unshift({ id: "link_" + Date.now(), title: url, url: url });
       });
     }
+  }
+
+  if (newMsg) {
+    if (replyingToMessage) {
+      newMsg.replyTo = {
+        id: replyingToMessage.id,
+        senderName: replyingToMessage.senderName,
+        senderUsername: replyingToMessage.senderUsername,
+        text: replyingToMessage.text,
+        type: replyingToMessage.type
+      };
+      cancelReply();
+    }
+    newMsg.reactions = {};
   }
 
   user.messages.push(newMsg);
@@ -3425,7 +3727,9 @@ function initRealtimeSSE() {
                 duration: msg.duration,
                 durationText: msg.durationText,
                 time: msg.time || new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-                status: "seen"
+                status: "seen",
+                replyTo: msg.replyTo || null,
+                reactions: (msg.reactions && typeof msg.reactions === 'object') ? msg.reactions : {}
               };
               targetConversation.messages.push(newReceivedMsg);
 
@@ -3493,6 +3797,22 @@ function initRealtimeSSE() {
               }
             }
           }
+        }
+
+        // 1.04 Xử lý biểu cảm phản ứng (Reactions)
+        if (type === "message_reaction" && data) {
+          const { messageId, reactions } = data;
+          for (const u of internalUsers) {
+            if (u.messages) {
+              const m = u.messages.find(x => x.id === messageId);
+              if (m) {
+                m.reactions = reactions;
+              }
+            }
+          }
+          updateMessageReactionsDOM(messageId, reactions);
+          updateLocalMessageReactions(messageId, reactions);
+          return;
         }
 
         // 1.05 Sự kiện đang soạn tin nhắn (Typing Indicator)
@@ -3821,7 +4141,12 @@ function openLightbox(url, caption) {
 }
 
 function closeLightbox() {
-  document.getElementById("lightboxModal") && (document.getElementById("lightboxModal").style.display = "none");
+  const modal = document.getElementById("lightboxModal");
+  if (modal) {
+    modal.style.display = "none";
+    const img = document.getElementById("lightboxImg");
+    if (img) img.src = "";
+  }
 }
 
 function showToast(message) {
@@ -4172,9 +4497,42 @@ function setupEventListeners() {
     });
   }
 
-  // Lightbox
+  // Lightbox - Xem ảnh phóng to: đóng bằng chuột (nút X, overlay mờ, hoặc bấm ra ngoài ảnh)
   document.getElementById("lightboxOverlay")?.addEventListener("click", closeLightbox);
   document.getElementById("lightboxCloseBtn")?.addEventListener("click", closeLightbox);
+  document.getElementById("lightboxModal")?.addEventListener("click", (e) => {
+    if (e.target.id === "lightboxModal" || e.target.id === "lightboxOverlay") {
+      closeLightbox();
+    }
+  });
+
+  // Bàn phím Esc (Escape): đóng xem ảnh phóng to hoặc hủy trả lời
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" || e.key === "Esc") {
+      const modal = document.getElementById("lightboxModal");
+      if (modal && modal.style.display !== "none") {
+        closeLightbox();
+        e.preventDefault();
+        return;
+      }
+      if (replyingToMessage) {
+        cancelReply();
+        e.preventDefault();
+        return;
+      }
+      document.querySelectorAll(".msg-reaction-picker.show").forEach(p => p.classList.remove("show"));
+    }
+  });
+
+  // Nút hủy trả lời tin nhắn
+  document.getElementById("btnCancelReply")?.addEventListener("click", cancelReply);
+
+  // Đóng bảng chọn cảm xúc khi bấm ra ngoài
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".reaction-btn-wrapper")) {
+      document.querySelectorAll(".msg-reaction-picker.show").forEach(p => p.classList.remove("show"));
+    }
+  });
 
   // Xóa lịch sử tin nhắn
   document.getElementById("optClearChat")?.addEventListener("click", async () => {

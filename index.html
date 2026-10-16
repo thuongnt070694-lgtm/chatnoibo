@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <!-- Font Awesome CDN for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="style.css?v=6.0">
+  <link rel="stylesheet" href="style.css?v=6.1">
 </head>
 <body class="theme-light">
   <div class="chat-app-container">
@@ -163,6 +163,20 @@
           <span></span><span></span><span></span>
         </span>
         <span class="typing-text" id="typingText">Đang soạn tin...</span>
+      </div>
+
+      <!-- Xem trước trích dẫn tin nhắn đang trả lời -->
+      <div class="reply-preview-bar" id="replyPreviewBar" style="display: none;">
+        <div class="reply-preview-content">
+          <i class="fa-solid fa-reply reply-preview-icon"></i>
+          <div class="reply-preview-info">
+            <span class="reply-preview-sender" id="replyPreviewSender">Đang trả lời...</span>
+            <span class="reply-preview-text" id="replyPreviewText">Nội dung tin nhắn...</span>
+          </div>
+        </div>
+        <button class="btn-cancel-reply" id="btnCancelReply" title="Hủy trả lời (Esc)">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       </div>
 
       <!-- Xem trước tệp đính kèm trước khi gửi -->
@@ -757,6 +771,6 @@
     <span id="toastMessage">Thông báo</span>
   </div>
 
-  <script src="app.js?v=6.0"></script>
+  <script src="app.js?v=6.1"></script>
 </body>
 </html>
