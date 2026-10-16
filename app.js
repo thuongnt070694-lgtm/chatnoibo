@@ -3903,7 +3903,7 @@ function setupEventListeners() {
     });
   }
 
-  // 1. Quản lý Bật/Tắt Cột Phải (Desktop & Mobile)
+  // 1. Quản lý Bật/Tắt Cột Phải (Tự động thu gọn khi màn hình nhỏ, ô chat co nhỏ theo khi mở)
   const panelRight = document.getElementById("panelRight");
   const btnToggleRight = document.getElementById("btnToggleRightPanel");
   const btnCloseRight = document.getElementById("btnCloseRightPanel");
@@ -3912,10 +3912,48 @@ function setupEventListeners() {
   const btnToggleLeft = document.getElementById("btnToggleLeftMenu");
   const btnCloseLeft = document.getElementById("btnCloseLeftPanel");
 
+  // Khởi tạo trạng thái mặc định: nếu màn hình nhỏ (<= 1150px) thì mặc định ẩn cột phải
+  if (window.innerWidth <= 1150) {
+    panelRight?.classList.add("collapsed");
+    btnToggleRight?.classList.remove("active-toggle");
+  } else {
+    panelRight?.classList.remove("collapsed");
+    btnToggleRight?.classList.add("active-toggle");
+  }
+
+  // Lắng nghe khi người dùng co nhỏ cửa sổ trình duyệt
+  let lastWinWidth = window.innerWidth;
+  window.addEventListener("resize", () => {
+    const curWidth = window.innerWidth;
+    if (curWidth <= 1150 && lastWinWidth > 1150) {
+      // Khi thu nhỏ màn hình xuống <= 1150px, mặc định ẩn menu phải nếu không được người dùng ghim mở
+      if (!panelRight?.dataset.userOpened) {
+        panelRight?.classList.add("collapsed");
+        btnToggleRight?.classList.remove("active-toggle");
+      }
+    } else if (curWidth > 1150 && lastWinWidth <= 1150) {
+      panelRight?.classList.remove("collapsed");
+      btnToggleRight?.classList.add("active-toggle");
+    }
+    lastWinWidth = curWidth;
+  });
+
   btnToggleRight?.addEventListener("click", () => {
     const isCollapsed = panelRight?.classList.toggle("collapsed");
     btnToggleRight?.classList.toggle("active-toggle", !isCollapsed);
-    if (window.innerWidth <= 768) {
+
+    if (!isCollapsed) {
+      panelRight.dataset.userOpened = "true";
+      // Khi mở menu phải trên màn hình hẹp (<= 880px), tự động thu gọn menu trái để nhường không gian cho ô chat co nhỏ theo
+      if (window.innerWidth <= 880 && panelLeft && !panelLeft.classList.contains("collapsed")) {
+        panelLeft.classList.add("collapsed");
+        btnToggleLeft?.classList.remove("active-toggle");
+      }
+    } else {
+      delete panelRight?.dataset.userOpened;
+    }
+
+    if (window.innerWidth <= 640) {
       if (!isCollapsed) {
         mobileBackdrop?.classList.add("active");
         panelLeft?.classList.remove("open");
@@ -3929,14 +3967,15 @@ function setupEventListeners() {
   btnCloseRight?.addEventListener("click", () => {
     panelRight?.classList.add("collapsed");
     btnToggleRight?.classList.remove("active-toggle");
-    if (window.innerWidth <= 768) {
+    delete panelRight?.dataset.userOpened;
+    if (window.innerWidth <= 640) {
       mobileBackdrop?.classList.remove("active");
     }
   });
 
   // 2. Quản lý Bật/Tắt Cột Trái (Desktop: thu gọn | Mobile: trượt Drawer)
   function toggleLeftSidebar() {
-    if (window.innerWidth <= 768) {
+    if (window.innerWidth <= 640) {
       const isOpen = panelLeft?.classList.toggle("open");
       if (isOpen) {
         mobileBackdrop?.classList.add("active");
@@ -3957,7 +3996,7 @@ function setupEventListeners() {
   }
 
   function closeLeftSidebar() {
-    if (window.innerWidth <= 768) {
+    if (window.innerWidth <= 640) {
       panelLeft?.classList.remove("open");
       mobileBackdrop?.classList.remove("active");
       btnToggleLeft?.classList.remove("active-toggle");
@@ -3980,10 +4019,11 @@ function setupEventListeners() {
     mobileBackdrop?.classList.remove("active");
     btnToggleLeft?.classList.remove("active-toggle");
     btnToggleRight?.classList.remove("active-toggle");
+    delete panelRight?.dataset.userOpened;
   });
 
   // Phục hồi trạng thái Menu Trái trên Desktop từ LocalStorage
-  if (window.innerWidth > 768) {
+  if (window.innerWidth > 640) {
     try {
       const isLeftCollapsed = localStorage.getItem("chatexcel_left_collapsed") === "1";
       if (isLeftCollapsed) {
