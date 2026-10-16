@@ -43,6 +43,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initTheme();
   setupEventListeners();
   setupAdminSettingsEvents();
+  setupAvatarCropperEvents();
   setupGroupManagementEvents();
   setupAuthEvents();
   setupCallingEvents();
@@ -2773,38 +2774,292 @@ function setupGroupAvatarUpload() {
   fileInput?.addEventListener("change", function(e) {
     const file = e.target.files[0];
     if (!file) return;
+    openAvatarCropper(file, "group");
+    fileInput.value = "";
+  });
+}
 
+// ==========================================
+// BỘ CÔNG CỤ CẮT & CĂN CHỈNH KHUNG HÌNH AVATAR (AVATAR CROPPER)
+// ==========================================
+
+let cropState = {
+  active: false,
+  targetType: "user", // "user" hoặc "group"
+  sourceImg: null,
+  zoom: 1.0,
+  minZoom: 0.6,
+  maxZoom: 3.5,
+  panX: 0,
+  panY: 0,
+  rotation: 0,
+  isDragging: false,
+  dragStartX: 0,
+  dragStartY: 0,
+  baseScale: 1.0,
+  canvasSize: 340,
+  cropDiameter: 250
+};
+
+function openAvatarCropper(imageSource, targetType = "user") {
+  cropState.targetType = targetType;
+  cropState.active = true;
+  cropState.zoom = 1.0;
+  cropState.panX = 0;
+  cropState.panY = 0;
+  cropState.rotation = 0;
+  cropState.isDragging = false;
+
+  const slider = document.getElementById("cropZoomSlider");
+  if (slider) slider.value = "1";
+
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => {
+    cropState.sourceImg = img;
+    const modal = document.getElementById("avatarCropModal");
+    if (modal) modal.style.display = "flex";
+    initCropCanvas();
+    drawCropCanvas();
+  };
+  img.onerror = () => {
+    showToast("⚠️ Không thể tải hình ảnh để căn chỉnh.");
+  };
+
+  if (typeof imageSource === "string") {
+    img.src = imageSource;
+  } else if (imageSource instanceof File || imageSource instanceof Blob) {
     const reader = new FileReader();
-    reader.onload = function(evt) {
-      const img = new Image();
-      img.onload = function() {
-        // Nén ảnh về 150x150 JPEG bằng Canvas
-        const canvas = document.createElement("canvas");
-        canvas.width = 150;
-        canvas.height = 150;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, 150, 150);
-        const compressedData = canvas.toDataURL("image/jpeg", 0.85);
+    reader.onload = (e) => { img.src = e.target.result; };
+    reader.readAsDataURL(imageSource);
+  }
+}
 
-        // Gửi lên server
-        fetch("/api/group/update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ avatar: compressedData })
-        })
-        .then(res => res.json())
-        .then(data => {
-          showToast("✅ Đã cập nhật ảnh đại diện nhóm thành công!");
-        })
-        .catch(err => {
-          showToast("Lỗi gửi ảnh nhóm lên server!");
-        });
+function closeAvatarCropper() {
+  cropState.active = false;
+  cropState.sourceImg = null;
+  const modal = document.getElementById("avatarCropModal");
+  if (modal) modal.style.display = "none";
+}
 
-        fileInput.value = "";
-      };
-      img.src = evt.target.result;
-    };
-    reader.readAsDataURL(file);
+function initCropCanvas() {
+  const canvas = document.getElementById("cropCanvas");
+  if (!canvas) return;
+  canvas.width = cropState.canvasSize;
+  canvas.height = cropState.canvasSize;
+}
+
+function drawCropCanvas() {
+  const canvas = document.getElementById("cropCanvas");
+  if (!canvas || !cropState.sourceImg) return;
+  const ctx = canvas.getContext("2d");
+  const img = cropState.sourceImg;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const center = cropState.canvasSize / 2;
+
+  // Xử lý kích thước hiển thị khi xoay
+  const isRotated90 = (cropState.rotation % 180 !== 0);
+  const curW = isRotated90 ? img.naturalHeight : img.naturalWidth;
+  const curH = isRotated90 ? img.naturalWidth : img.naturalHeight;
+
+  // Base scale đảm bảo ảnh luôn phủ trọn khung tròn 250px mà KHÔNG BAO GIỜ bị méo tỉ lệ
+  const minDim = Math.min(curW, curH);
+  cropState.baseScale = cropState.cropDiameter / (minDim || 1);
+
+  const currentScale = cropState.baseScale * cropState.zoom;
+
+  ctx.save();
+  ctx.translate(center + cropState.panX, center + cropState.panY);
+  ctx.rotate((cropState.rotation * Math.PI) / 180);
+
+  const drawW = img.naturalWidth * currentScale;
+  const drawH = img.naturalHeight * currentScale;
+
+  ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+  ctx.restore();
+}
+
+function exportCroppedAvatar() {
+  if (!cropState.sourceImg) return null;
+  const img = cropState.sourceImg;
+
+  const exportSize = 320; // Xuất ảnh vuông 320x320 px sắc nét cao
+  const exportCanvas = document.createElement("canvas");
+  exportCanvas.width = exportSize;
+  exportCanvas.height = exportSize;
+  const exportCtx = exportCanvas.getContext("2d");
+
+  exportCtx.imageSmoothingEnabled = true;
+  exportCtx.imageSmoothingQuality = "high";
+
+  const exportCenter = exportSize / 2;
+  const ratio = exportSize / cropState.cropDiameter;
+
+  const currentScale = cropState.baseScale * cropState.zoom * ratio;
+
+  exportCtx.save();
+  exportCtx.translate(exportCenter + cropState.panX * ratio, exportCenter + cropState.panY * ratio);
+  exportCtx.rotate((cropState.rotation * Math.PI) / 180);
+
+  const drawW = img.naturalWidth * currentScale;
+  const drawH = img.naturalHeight * currentScale;
+
+  exportCtx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+  exportCtx.restore();
+
+  return exportCanvas.toDataURL("image/jpeg", 0.92);
+}
+
+function applyAvatarCrop() {
+  const croppedDataUrl = exportCroppedAvatar();
+  if (!croppedDataUrl) return;
+
+  if (cropState.targetType === "user") {
+    tempNewAvatarData = croppedDataUrl;
+    const previewImg = document.getElementById("adminAvatarPreview");
+    if (previewImg) previewImg.src = croppedDataUrl;
+    showToast("✨ Đã căn chỉnh ảnh đại diện thành công!");
+  } else if (cropState.targetType === "group") {
+    const activeUser = internalUsers.find(u => u.id === currentUserId);
+    if (activeUser && activeUser.isGroup) {
+      activeUser.avatar = croppedDataUrl;
+      const rAvatar = document.getElementById("rightProfileAvatar");
+      if (rAvatar) rAvatar.src = croppedDataUrl;
+      const headAvatar = document.getElementById("recipientAvatar");
+      if (headAvatar) headAvatar.src = croppedDataUrl;
+      renderUserList();
+
+      fetch("/api/group/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatar: croppedDataUrl })
+      })
+      .then(res => res.json())
+      .then(() => {
+        showToast("✅ Đã cập nhật ảnh nhóm thành công!");
+      })
+      .catch(() => {
+        showToast("Lỗi gửi ảnh nhóm lên server!");
+      });
+    }
+  }
+
+  closeAvatarCropper();
+}
+
+function setupAvatarCropperEvents() {
+  const container = document.getElementById("cropViewportContainer");
+  const zoomSlider = document.getElementById("cropZoomSlider");
+  const btnZoomIn = document.getElementById("btnCropZoomIn");
+  const btnZoomOut = document.getElementById("btnCropZoomOut");
+  const btnRotate = document.getElementById("btnCropRotate");
+  const btnReset = document.getElementById("btnCropReset");
+  const btnApply = document.getElementById("btnApplyAvatarCrop");
+  const btnCancel = document.getElementById("btnCancelAvatarCrop");
+  const btnClose = document.getElementById("btnCloseAvatarCrop");
+
+  // Đóng modal
+  btnClose?.addEventListener("click", closeAvatarCropper);
+  btnCancel?.addEventListener("click", closeAvatarCropper);
+  document.getElementById("avatarCropModal")?.addEventListener("click", (e) => {
+    if (e.target.id === "avatarCropModal") closeAvatarCropper();
+  });
+
+  // Áp dụng
+  btnApply?.addEventListener("click", applyAvatarCrop);
+
+  // Kéo rê chuột để căn chỉnh vị trí (Pan/Drag)
+  if (container) {
+    container.addEventListener("mousedown", (e) => {
+      cropState.isDragging = true;
+      cropState.dragStartX = e.clientX - cropState.panX;
+      cropState.dragStartY = e.clientY - cropState.panY;
+      e.preventDefault();
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      if (!cropState.isDragging) return;
+      cropState.panX = e.clientX - cropState.dragStartX;
+      cropState.panY = e.clientY - cropState.dragStartY;
+      drawCropCanvas();
+    });
+
+    window.addEventListener("mouseup", () => {
+      cropState.isDragging = false;
+    });
+
+    // Hỗ trợ cảm ứng trên điện thoại / tablet
+    container.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 1) {
+        cropState.isDragging = true;
+        cropState.dragStartX = e.touches[0].clientX - cropState.panX;
+        cropState.dragStartY = e.touches[0].clientY - cropState.panY;
+      }
+    }, { passive: true });
+
+    container.addEventListener("touchmove", (e) => {
+      if (cropState.isDragging && e.touches.length === 1) {
+        cropState.panX = e.touches[0].clientX - cropState.dragStartX;
+        cropState.panY = e.touches[0].clientY - cropState.dragStartY;
+        drawCropCanvas();
+      }
+    }, { passive: true });
+
+    container.addEventListener("touchend", () => {
+      cropState.isDragging = false;
+    });
+
+    // Lăn chuột để thu phóng (Wheel to Zoom)
+    container.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.08 : 0.08;
+      let newZoom = Math.max(cropState.minZoom, Math.min(cropState.maxZoom, cropState.zoom + delta));
+      cropState.zoom = parseFloat(newZoom.toFixed(2));
+      if (zoomSlider) zoomSlider.value = String(cropState.zoom);
+      drawCropCanvas();
+    }, { passive: false });
+  }
+
+  // Thanh trượt thu phóng
+  if (zoomSlider) {
+    zoomSlider.addEventListener("input", function() {
+      cropState.zoom = parseFloat(this.value);
+      drawCropCanvas();
+    });
+  }
+
+  // Nút Phóng to (+)
+  btnZoomIn?.addEventListener("click", () => {
+    let newZoom = Math.min(cropState.maxZoom, cropState.zoom + 0.15);
+    cropState.zoom = parseFloat(newZoom.toFixed(2));
+    if (zoomSlider) zoomSlider.value = String(cropState.zoom);
+    drawCropCanvas();
+  });
+
+  // Nút Thu nhỏ (-)
+  btnZoomOut?.addEventListener("click", () => {
+    let newZoom = Math.max(cropState.minZoom, cropState.zoom - 0.15);
+    cropState.zoom = parseFloat(newZoom.toFixed(2));
+    if (zoomSlider) zoomSlider.value = String(cropState.zoom);
+    drawCropCanvas();
+  });
+
+  // Nút Xoay 90 độ
+  btnCropRotate?.addEventListener("click", () => {
+    cropState.rotation = (cropState.rotation + 90) % 360;
+    drawCropCanvas();
+  });
+
+  // Nút Căn giữa lại
+  btnCropReset?.addEventListener("click", () => {
+    cropState.panX = 0;
+    cropState.panY = 0;
+    cropState.zoom = 1.0;
+    cropState.rotation = 0;
+    if (zoomSlider) zoomSlider.value = "1";
+    drawCropCanvas();
   });
 }
 
@@ -2849,26 +3104,22 @@ function setupAdminSettingsEvents() {
     if (e.target === modal) closeSettings();
   });
 
-  // Chọn ảnh avatar từ máy tính (tự động nén tối ưu)
+  // Chọn ảnh avatar từ máy tính (mở bộ công cụ căn chỉnh & cắt khung hình)
   fileInput?.addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          const size = 150;
-          canvas.width = size;
-          canvas.height = size;
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(img, 0, 0, size, size);
-          tempNewAvatarData = canvas.toDataURL("image/jpeg", 0.85);
-          if (previewImg) previewImg.src = tempNewAvatarData;
-        };
-        img.src = evt.target.result;
-      };
-      reader.readAsDataURL(file);
+      openAvatarCropper(file, "user");
+    }
+    fileInput.value = "";
+  });
+
+  // Nút căn chỉnh khung hình ảnh hiện tại
+  document.getElementById("btnAdjustAvatar")?.addEventListener("click", () => {
+    const currentSrc = tempNewAvatarData || currentUser?.avatar;
+    if (currentSrc) {
+      openAvatarCropper(currentSrc, "user");
+    } else {
+      showToast("Vui lòng tải ảnh lên trước khi căn chỉnh!");
     }
   });
 
@@ -4509,6 +4760,12 @@ function setupEventListeners() {
   // Bàn phím Esc (Escape): đóng xem ảnh phóng to hoặc hủy trả lời
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape" || e.key === "Esc") {
+      const cropModal = document.getElementById("avatarCropModal");
+      if (cropModal && cropModal.style.display !== "none") {
+        closeAvatarCropper();
+        e.preventDefault();
+        return;
+      }
       const modal = document.getElementById("lightboxModal");
       if (modal && modal.style.display !== "none") {
         closeLightbox();

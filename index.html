@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <!-- Font Awesome CDN for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="style.css?v=6.1">
+  <link rel="stylesheet" href="style.css?v=6.2">
 </head>
 <body class="theme-light">
   <div class="chat-app-container">
@@ -497,7 +497,10 @@
           </div>
           <div class="avatar-edit-info">
             <span class="avatar-hint-title">Ảnh đại diện của bạn</span>
-            <span class="avatar-hint-sub">Bấm vào biểu tượng máy ảnh để tải ảnh từ máy tính (PNG, JPG, WebP)</span>
+            <span class="avatar-hint-sub">Bấm vào biểu tượng máy ảnh để tải ảnh mới, hoặc căn chỉnh khung hình ảnh hiện tại</span>
+            <button type="button" class="btn-adjust-avatar" id="btnAdjustAvatar" style="margin-top: 6px; font-size: 12px; padding: 4px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-card); cursor: pointer; color: var(--brand-primary); display: inline-flex; align-items: center; gap: 6px; width: fit-content;">
+              <i class="fa-solid fa-crop-simple"></i> Căn chỉnh khung hình & Thu phóng
+            </button>
           </div>
         </div>
 
@@ -520,6 +523,45 @@
       <div class="custom-modal-footer">
         <button class="btn-modal-secondary" id="btnCancelSettings">Hủy</button>
         <button class="btn-modal-primary" id="btnSaveSettings"><i class="fa-solid fa-check"></i> Lưu thay đổi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==============================================
+       MODAL CẮT & CĂN CHỈNH KHUNG HÌNH AVATAR (AVATAR CROPPER)
+       ============================================== -->
+  <div class="custom-modal-backdrop" id="avatarCropModal" style="display: none; z-index: 10050;">
+    <div class="custom-modal-dialog" style="max-width: 440px;">
+      <div class="custom-modal-header">
+        <h3 class="custom-modal-title"><i class="fa-solid fa-crop-simple"></i> Căn Chỉnh Khung Hình Avatar</h3>
+        <button class="btn-close-modal" id="btnCloseAvatarCrop"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="custom-modal-body" style="padding: 16px;">
+        <div class="crop-viewport-container" id="cropViewportContainer">
+          <canvas id="cropCanvas" width="340" height="340"></canvas>
+          <div class="crop-overlay-guide">
+            <div class="crop-circle-mask"></div>
+            <div class="crop-crosshair"></div>
+          </div>
+          <div class="crop-drag-hint">
+            <i class="fa-solid fa-up-down-left-right"></i> Kéo chuột để di chuyển • Lăn chuột để thu phóng
+          </div>
+        </div>
+
+        <!-- Thanh điều khiển thu phóng & xoay -->
+        <div class="crop-controls-wrapper">
+          <div class="crop-zoom-row">
+            <button class="btn-crop-tool" id="btnCropZoomOut" type="button" title="Thu nhỏ (-)"><i class="fa-solid fa-minus"></i></button>
+            <input type="range" id="cropZoomSlider" min="1" max="3" step="0.01" value="1" class="crop-range-slider" title="Thanh trượt thu phóng">
+            <button class="btn-crop-tool" id="btnCropZoomIn" type="button" title="Phóng to (+)"><i class="fa-solid fa-plus"></i></button>
+            <button class="btn-crop-tool" id="btnCropRotate" type="button" title="Xoay 90 độ"><i class="fa-solid fa-rotate-right"></i></button>
+            <button class="btn-crop-tool" id="btnCropReset" type="button" title="Căn giữa lại"><i class="fa-solid fa-arrows-to-dot"></i></button>
+          </div>
+        </div>
+      </div>
+      <div class="custom-modal-footer">
+        <button class="btn-modal-secondary" id="btnCancelAvatarCrop" type="button">Hủy</button>
+        <button class="btn-modal-primary" id="btnApplyAvatarCrop" type="button"><i class="fa-solid fa-check"></i> Áp dụng & Cắt ảnh</button>
       </div>
     </div>
   </div>
@@ -771,6 +813,6 @@
     <span id="toastMessage">Thông báo</span>
   </div>
 
-  <script src="app.js?v=6.1"></script>
+  <script src="app.js?v=6.2"></script>
 </body>
 </html>
