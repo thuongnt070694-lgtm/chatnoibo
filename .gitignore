@@ -16,5 +16,6 @@ desktop.ini
 # IDE & Editor folders
 .vscode/
 .idea/
-*.sublime-project
-*.sublime-workspace
+# User uploaded files
+uploads/*
+!uploads/.gitkeep

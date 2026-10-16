@@ -537,6 +537,9 @@ function hydrateMessagesIntoConversations(msgs) {
       fileUrl: m.fileUrl,
       imageUrl: m.imageUrl,
       caption: m.caption,
+      audioUrl: m.audioUrl,
+      duration: m.duration,
+      durationText: m.durationText,
       time: m.time || '',
       status: m.status || 'seen'
     };
@@ -558,6 +561,15 @@ function hydrateMessagesIntoConversations(msgs) {
         size: formattedMsg.fileSize || '',
         ext: formattedMsg.fileExt || getExtCategory((formattedMsg.fileName || '').split('.').pop().toLowerCase()),
         url: formattedMsg.fileUrl || '#',
+        date: formattedMsg.time || 'Gần đây'
+      });
+    } else if ((formattedMsg.type === 'voice' || formattedMsg.type === 'audio') && formattedMsg.audioUrl) {
+      targetConv.sharedFiles.unshift({
+        id: 'voice_' + formattedMsg.id,
+        name: formattedMsg.fileName || `Ghi âm (${formattedMsg.durationText || formatVoiceDuration(formattedMsg.duration || 0)})`,
+        size: formattedMsg.fileSize || 'Tin thoại',
+        ext: 'mp3',
+        url: formattedMsg.audioUrl,
         date: formattedMsg.time || 'Gần đây'
       });
     }
@@ -1075,6 +1087,26 @@ function renderMessages(user) {
           </a>
         </div>
       `;
+    } else if (msg.type === "voice" || msg.type === "audio") {
+      const durationText = msg.durationText || formatVoiceDuration(msg.duration || 0);
+      contentHtml = `
+        <div class="msg-voice-player" id="voice_player_${msg.id}">
+          <button class="voice-play-btn" id="voice_btn_${msg.id}" onclick="toggleVoicePlayback('${msg.id}', '${msg.audioUrl || ''}')" title="Phát tin nhắn thoại">
+            <i class="fa-solid fa-play"></i>
+          </button>
+          <div class="voice-waveform-wrap">
+            <div class="voice-progress-track" id="voice_track_${msg.id}" onclick="seekVoicePlayback(event, '${msg.id}')" title="Nhấp để tua âm thanh">
+              <div class="voice-progress-fill" id="voice_fill_${msg.id}"></div>
+            </div>
+            <div class="voice-info-row">
+              <span class="voice-time" id="voice_time_${msg.id}">0:00 / ${durationText}</span>
+              <a href="${msg.audioUrl || '#'}" download="tin_nhan_thoai_${msg.id}.webm" class="voice-download-link" title="Tải đoạn ghi âm về máy">
+                <i class="fa-solid fa-arrow-down-to-bracket"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
     } else {
       contentHtml = `<div class="msg-text">${formatMessageText(msg.text)}</div>`;
     }
@@ -1279,9 +1311,420 @@ function renderSharedLinks(user) {
 }
 
 // ==========================================
-// 8. GỬI TIN NHẮN (TEXT / FILE / ẢNH)
+// 7.5 CÁC HÀM TIỆN ÍCH TẢI TỆP, GHI ÂM THOẠI & TYPING INDICATOR
 // ==========================================
-function sendMessage() {
+
+// 1. TẢI TỆP LÊN MÁY CHỦ (STREAMING UPLOAD VỚI PROGRESS)
+function uploadFileToServer(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/upload");
+    xhr.setRequestHeader("x-filename", encodeURIComponent(file.name));
+
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          onProgress(percent);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const res = JSON.parse(xhr.responseText);
+          resolve(res);
+        } catch (err) {
+          reject(err);
+        }
+      } else {
+        reject(new Error("Lỗi tải tệp: HTTP " + xhr.status));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("Lỗi mạng khi tải tệp lên máy chủ"));
+    xhr.send(file);
+  });
+}
+
+function showUploadProgress(title, percent) {
+  const banner = document.getElementById("uploadProgressBanner");
+  const titleEl = document.getElementById("uploadProgressTitle");
+  const fillEl = document.getElementById("uploadProgressFill");
+  const percentEl = document.getElementById("uploadProgressPercent");
+
+  if (banner && titleEl && fillEl && percentEl) {
+    titleEl.innerText = title;
+    fillEl.style.width = percent + "%";
+    percentEl.innerText = percent + "%";
+    banner.style.display = "flex";
+  }
+}
+
+function hideUploadProgress() {
+  const banner = document.getElementById("uploadProgressBanner");
+  if (banner) banner.style.display = "none";
+}
+
+// 2. TÍN HIỆU ĐANG SOẠN TIN NHẮN (TYPING INDICATOR)
+let typingDebounceTimer = null;
+let isCurrentlyTyping = false;
+
+function sendTypingSignal(isTyping) {
+  if (!currentUserId || !currentUser) return;
+  const user = internalUsers.find(u => u.id === currentUserId);
+  if (!user) return;
+
+  fetch("/api/typing", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: currentUser.username,
+      fromName: currentUser.fullName,
+      targetUsername: user.username || (currentUserId ? currentUserId.replace(/^u_/, '') : ''),
+      isGroup: !!user.isGroup,
+      isTyping: isTyping
+    })
+  }).catch(() => {});
+}
+
+function handleTypingInput() {
+  const input = document.getElementById("messageInput");
+  const hasText = input && input.value.trim().length > 0;
+
+  if (hasText) {
+    if (!isCurrentlyTyping) {
+      isCurrentlyTyping = true;
+      sendTypingSignal(true);
+    }
+    clearTimeout(typingDebounceTimer);
+    typingDebounceTimer = setTimeout(() => {
+      isCurrentlyTyping = false;
+      sendTypingSignal(false);
+    }, 2800);
+  } else {
+    if (isCurrentlyTyping) {
+      isCurrentlyTyping = false;
+      clearTimeout(typingDebounceTimer);
+      sendTypingSignal(false);
+    }
+  }
+}
+
+// 3. PHÁT TIN NHẮN THOẠI (VOICE MEMO PLAYER)
+let currentPlayingVoice = {
+  id: null,
+  audio: null
+};
+
+function formatVoiceDuration(totalSec) {
+  if (!totalSec || isNaN(totalSec)) return "0:00";
+  const m = Math.floor(totalSec / 60);
+  const s = Math.floor(totalSec % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function toggleVoicePlayback(msgId, audioUrl) {
+  if (!audioUrl) return;
+
+  // Nếu đang phát chính audio này
+  if (currentPlayingVoice.id === msgId && currentPlayingVoice.audio) {
+    if (!currentPlayingVoice.audio.paused) {
+      currentPlayingVoice.audio.pause();
+      updateVoiceBtnIcon(msgId, false);
+    } else {
+      currentPlayingVoice.audio.play();
+      updateVoiceBtnIcon(msgId, true);
+    }
+    return;
+  }
+
+  // Nếu đang phát một audio khác -> dừng lại trước
+  if (currentPlayingVoice.audio) {
+    currentPlayingVoice.audio.pause();
+    if (currentPlayingVoice.id) {
+      updateVoiceBtnIcon(currentPlayingVoice.id, false);
+      resetVoiceProgress(currentPlayingVoice.id);
+    }
+    currentPlayingVoice.audio = null;
+    currentPlayingVoice.id = null;
+  }
+
+  const audio = new Audio(audioUrl);
+  currentPlayingVoice.id = msgId;
+  currentPlayingVoice.audio = audio;
+
+  const fill = document.getElementById(`voice_fill_${msgId}`);
+  const timeEl = document.getElementById(`voice_time_${msgId}`);
+
+  updateVoiceBtnIcon(msgId, true);
+
+  audio.ontimeupdate = () => {
+    if (audio.duration && !isNaN(audio.duration)) {
+      const pct = (audio.currentTime / audio.duration) * 100;
+      if (fill) fill.style.width = pct + "%";
+      if (timeEl) {
+        timeEl.innerText = `${formatVoiceDuration(audio.currentTime)} / ${formatVoiceDuration(audio.duration)}`;
+      }
+    }
+  };
+
+  audio.onended = () => {
+    updateVoiceBtnIcon(msgId, false);
+    resetVoiceProgress(msgId);
+    currentPlayingVoice.id = null;
+    currentPlayingVoice.audio = null;
+  };
+
+  audio.onerror = () => {
+    updateVoiceBtnIcon(msgId, false);
+    showToast("⚠️ Không thể phát tệp âm thanh này.");
+    currentPlayingVoice.id = null;
+    currentPlayingVoice.audio = null;
+  };
+
+  audio.play().catch(e => {
+    console.warn("Lỗi phát audio:", e);
+    updateVoiceBtnIcon(msgId, false);
+  });
+}
+
+function updateVoiceBtnIcon(msgId, isPlaying) {
+  const btn = document.getElementById(`voice_btn_${msgId}`);
+  if (btn) {
+    btn.classList.toggle("playing", isPlaying);
+    btn.innerHTML = isPlaying
+      ? '<i class="fa-solid fa-pause"></i>'
+      : '<i class="fa-solid fa-play"></i>';
+  }
+}
+
+function resetVoiceProgress(msgId) {
+  const fill = document.getElementById(`voice_fill_${msgId}`);
+  if (fill) fill.style.width = "0%";
+}
+
+function seekVoicePlayback(event, msgId) {
+  if (currentPlayingVoice.id === msgId && currentPlayingVoice.audio && currentPlayingVoice.audio.duration) {
+    const track = document.getElementById(`voice_track_${msgId}`);
+    if (!track) return;
+    const rect = track.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const pct = Math.max(0, Math.min(1, clickX / rect.width));
+    currentPlayingVoice.audio.currentTime = pct * currentPlayingVoice.audio.duration;
+  }
+}
+
+window.toggleVoicePlayback = toggleVoicePlayback;
+window.seekVoicePlayback = seekVoicePlayback;
+
+// 4. GHI ÂM GIỌNG NÓI TRỰC TIẾP (VOICE MEMO RECORDER)
+let mediaRecorderInstance = null;
+let recordingStream = null;
+let recordingTimerInterval = null;
+let recordingSeconds = 0;
+let recordedAudioChunks = [];
+
+async function startVoiceRecording() {
+  if (!currentUserId || !currentUser) {
+    showToast("Vui lòng chọn người nhận trước khi ghi âm!");
+    return;
+  }
+
+  // Kiểm tra quyền cấm chat nếu là nhóm
+  const user = internalUsers.find(u => u.id === currentUserId);
+  if (user && user.isGroup) {
+    if (currentGroupData?.mutedUsers?.includes(currentUser.username)) {
+      showToast("❌ Bạn đang bị cấm chat trong nhóm này bởi Trưởng/Phó nhóm!");
+      return;
+    }
+    if (currentGroupData?.onlyAdminsCanChat) {
+      const myRole = getMyGroupRole();
+      if (myRole === "member") {
+        showToast("🔒 Chỉ Trưởng nhóm và Phó nhóm mới có quyền gửi tin nhắn lúc này!");
+        return;
+      }
+    }
+  }
+
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showToast("Trình duyệt không hỗ trợ thu âm microphone.");
+      return;
+    }
+
+    recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    let options = {};
+    if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+      options = { mimeType: 'audio/webm;codecs=opus' };
+    } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+      options = { mimeType: 'audio/ogg;codecs=opus' };
+    } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+      options = { mimeType: 'audio/webm' };
+    } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+      options = { mimeType: 'audio/mp4' };
+    }
+
+    mediaRecorderInstance = new MediaRecorder(recordingStream, options);
+    recordedAudioChunks = [];
+
+    mediaRecorderInstance.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) {
+        recordedAudioChunks.push(e.data);
+      }
+    };
+
+    mediaRecorderInstance.start(200);
+
+    const recBar = document.getElementById("voiceRecorderBar");
+    const actionsLeft = document.getElementById("inputActionsLeft");
+    const msgWrapper = document.getElementById("messageInputWrapper");
+    const actionsRight = document.getElementById("inputActionsRight");
+
+    if (recBar) recBar.style.display = "flex";
+    if (actionsLeft) actionsLeft.style.display = "none";
+    if (msgWrapper) msgWrapper.style.display = "none";
+    if (actionsRight) actionsRight.style.display = "none";
+
+    recordingSeconds = 0;
+    const timerEl = document.getElementById("recordingTimer");
+    if (timerEl) timerEl.innerText = "00:00";
+
+    clearInterval(recordingTimerInterval);
+    recordingTimerInterval = setInterval(() => {
+      recordingSeconds++;
+      const m = String(Math.floor(recordingSeconds / 60)).padStart(2, '0');
+      const s = String(recordingSeconds % 60).padStart(2, '0');
+      if (timerEl) timerEl.innerText = `${m}:${s}`;
+    }, 1000);
+
+  } catch (err) {
+    console.error("Lỗi cấp quyền microphone:", err);
+    showToast("⚠️ Vui lòng cấp quyền Microphone trên trình duyệt để ghi âm!");
+    cleanupVoiceRecordingUI();
+  }
+}
+
+function cleanupVoiceRecordingUI() {
+  clearInterval(recordingTimerInterval);
+  recordingSeconds = 0;
+
+  if (recordingStream) {
+    recordingStream.getTracks().forEach(t => t.stop());
+    recordingStream = null;
+  }
+  mediaRecorderInstance = null;
+  recordedAudioChunks = [];
+
+  const recBar = document.getElementById("voiceRecorderBar");
+  const actionsLeft = document.getElementById("inputActionsLeft");
+  const msgWrapper = document.getElementById("messageInputWrapper");
+  const actionsRight = document.getElementById("inputActionsRight");
+
+  if (recBar) recBar.style.display = "none";
+  if (actionsLeft) actionsLeft.style.display = "flex";
+  if (msgWrapper) msgWrapper.style.display = "flex";
+  if (actionsRight) actionsRight.style.display = "flex";
+}
+
+function cancelVoiceRecording() {
+  if (mediaRecorderInstance && mediaRecorderInstance.state !== 'inactive') {
+    mediaRecorderInstance.onstop = null;
+    mediaRecorderInstance.stop();
+  }
+  cleanupVoiceRecordingUI();
+  showToast("Đã hủy bản ghi âm");
+}
+
+async function sendVoiceRecording() {
+  if (!mediaRecorderInstance) return;
+
+  const durationSec = recordingSeconds;
+  if (durationSec < 1) {
+    showToast("Bản ghi âm quá ngắn (< 1 giây)");
+    cancelVoiceRecording();
+    return;
+  }
+
+  const mimeType = mediaRecorderInstance.mimeType || 'audio/webm';
+  const extension = mimeType.includes('ogg') ? '.ogg' : (mimeType.includes('mp4') ? '.mp4' : '.webm');
+
+  mediaRecorderInstance.onstop = async () => {
+    try {
+      const audioBlob = new Blob(recordedAudioChunks, { type: mimeType });
+      const voiceFilename = `voice_${Date.now()}${extension}`;
+      const voiceFile = new File([audioBlob], voiceFilename, { type: mimeType });
+
+      showUploadProgress("Đang gửi tin nhắn thoại...", 20);
+      const uploadResult = await uploadFileToServer(voiceFile, (pct) => {
+        showUploadProgress(`Đang gửi tin nhắn thoại (${pct}%)...`, pct);
+      });
+      hideUploadProgress();
+
+      if (!currentUserId || !currentUser) return;
+      const user = internalUsers.find(u => u.id === currentUserId);
+      if (!user) return;
+
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      const voiceMsg = {
+        id: "msg_" + Date.now(),
+        sender: "me",
+        senderName: currentUser.fullName,
+        senderUsername: currentUser.username,
+        type: "voice",
+        audioUrl: uploadResult.fileUrl,
+        duration: durationSec,
+        durationText: formatVoiceDuration(durationSec),
+        fileName: voiceFilename,
+        fileSize: uploadResult.fileSize,
+        time: timeStr,
+        status: "sent"
+      };
+
+      user.messages.push(voiceMsg);
+      user.unreadCount = 0;
+      setLastReadTime(currentUserId, Date.now());
+
+      renderMessages(user);
+      renderUserList();
+
+      const payloadMsg = {
+        ...voiceMsg,
+        targetId: currentUserId,
+        targetUsername: user.username || (currentUserId ? currentUserId.replace(/^u_/, '') : ""),
+        isGroup: !!user.isGroup
+      };
+      saveLocalMessage(payloadMsg);
+
+      fetch("/api/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payloadMsg)
+      }).catch(e => console.error("Lỗi gửi tin thoại:", e));
+
+      showToast("🎙️ Đã gửi tin nhắn thoại!");
+    } catch (err) {
+      hideUploadProgress();
+      console.error("Lỗi gửi tin nhắn thoại:", err);
+      showToast("❌ Không thể gửi tin nhắn thoại. Vui lòng thử lại!");
+    } finally {
+      cleanupVoiceRecordingUI();
+    }
+  };
+
+  if (mediaRecorderInstance.state !== 'inactive') {
+    mediaRecorderInstance.stop();
+  }
+}
+
+// ==========================================
+// 8. GỬI TIN NHẮN (TEXT / TỆP TIN / HÌNH ẢNH)
+// ==========================================
+async function sendMessage() {
   const input = document.getElementById("messageInput");
   const text = input ? input.value.trim() : "";
 
@@ -1290,6 +1733,11 @@ function sendMessage() {
 
   const user = internalUsers.find(u => u.id === currentUserId);
   if (!user) return;
+
+  // Dừng trạng thái gõ chữ khi gửi tin
+  sendTypingSignal(false);
+  isCurrentlyTyping = false;
+  clearTimeout(typingDebounceTimer);
 
   // Kiểm tra quyền gửi tin nhắn trong nhóm
   if (user.isGroup) {
@@ -1312,6 +1760,28 @@ function sendMessage() {
   let newMsg = null;
 
   if (pendingAttachment) {
+    let uploadedUrl = pendingAttachment.url;
+    let uploadedSize = pendingAttachment.size;
+
+    // Nếu có file vật lý cần upload lên thư mục /uploads
+    if (pendingAttachment.file) {
+      try {
+        showUploadProgress(`Đang tải lên: ${pendingAttachment.name}...`, 10);
+        const uploadedData = await uploadFileToServer(pendingAttachment.file, (pct) => {
+          showUploadProgress(`Đang tải lên (${pct}%): ${pendingAttachment.name}`, pct);
+        });
+        hideUploadProgress();
+        if (uploadedData && uploadedData.fileUrl) {
+          uploadedUrl = uploadedData.fileUrl;
+          uploadedSize = uploadedData.fileSize || pendingAttachment.size;
+        }
+      } catch (uploadErr) {
+        hideUploadProgress();
+        console.error("Lỗi tải tệp lên thư mục uploads:", uploadErr);
+        showToast("⚠️ Không thể tải tệp lên máy chủ. Đang chuyển sang chế độ dự phòng...");
+      }
+    }
+
     if (pendingAttachment.type === "image") {
       newMsg = {
         id: "msg_" + Date.now(),
@@ -1319,14 +1789,14 @@ function sendMessage() {
         senderName: currentUser.fullName,
         senderUsername: currentUser.username,
         type: "image",
-        imageUrl: pendingAttachment.url,
+        imageUrl: uploadedUrl,
         caption: text || pendingAttachment.name,
         time: timeStr,
         status: "sent"
       };
       user.sharedImages.unshift({
         id: "img_" + Date.now(),
-        url: pendingAttachment.url,
+        url: uploadedUrl,
         title: pendingAttachment.name,
         date: "Vừa xong"
       });
@@ -1338,18 +1808,18 @@ function sendMessage() {
         senderUsername: currentUser.username,
         type: "file",
         fileName: pendingAttachment.name,
-        fileSize: pendingAttachment.size,
+        fileSize: uploadedSize,
         fileExt: pendingAttachment.ext,
-        fileUrl: pendingAttachment.url,
+        fileUrl: uploadedUrl,
         time: timeStr,
         status: "sent"
       };
       user.sharedFiles.unshift({
         id: "file_" + Date.now(),
         name: pendingAttachment.name,
-        size: pendingAttachment.size,
+        size: uploadedSize,
         ext: pendingAttachment.ext,
-        url: pendingAttachment.url,
+        url: uploadedUrl,
         date: "Vừa xong"
       });
     }
@@ -2930,6 +3400,9 @@ function initRealtimeSSE() {
                 fileUrl: msg.fileUrl,
                 imageUrl: msg.imageUrl,
                 caption: msg.caption,
+                audioUrl: msg.audioUrl,
+                duration: msg.duration,
+                durationText: msg.durationText,
                 time: msg.time || new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
                 status: "seen"
               };
@@ -2954,6 +3427,15 @@ function initRealtimeSSE() {
                   url: msg.fileUrl,
                   date: msg.time || "Vừa xong"
                 });
+              } else if ((msg.type === "voice" || msg.type === "audio") && msg.audioUrl) {
+                targetConversation.sharedFiles.unshift({
+                  id: "voice_" + (msg.id || Date.now()),
+                  name: msg.fileName || `Ghi âm (${msg.durationText || formatVoiceDuration(msg.duration || 0)})`,
+                  size: msg.fileSize || "Tin thoại",
+                  ext: "mp3",
+                  url: msg.audioUrl,
+                  date: msg.time || "Vừa xong"
+                });
               }
 
               if (msg.type === "text" && msg.text) {
@@ -2976,14 +3458,56 @@ function initRealtimeSSE() {
                 targetConversation.unreadCount = (targetConversation.unreadCount || 0) + 1;
                 if (!isMe) {
                   playNotificationChime();
-                  showDesktopNotification(newReceivedMsg.senderName, newReceivedMsg.text || (newReceivedMsg.type === 'image' ? '[Hình ảnh]' : '[Tệp đính kèm]'));
+                  const notifText = msg.type === 'voice'
+                    ? `[Tin nhắn thoại: ${msg.durationText || 'Âm thanh'}]`
+                    : (newReceivedMsg.text || (newReceivedMsg.type === 'image' ? '[Hình ảnh]' : '[Tệp đính kèm]'));
+                  showDesktopNotification(newReceivedMsg.senderName, notifText);
                   triggerTabTitleAlert(targetConversation.name || newReceivedMsg.senderName);
                 }
               }
               renderUserList();
               updateGlobalUnreadBadge();
               if (!isMe) {
-                showToast(`📩 Tin nhắn mới từ ${msg.senderName}!`);
+                showToast(msg.type === 'voice' ? `🎙️ Tin nhắn thoại mới từ ${msg.senderName}!` : `📩 Tin nhắn mới từ ${msg.senderName}!`);
+              }
+            }
+          }
+        }
+
+        // 1.05 Sự kiện đang soạn tin nhắn (Typing Indicator)
+        if (type === "user_typing" && data) {
+          if (data.from === (currentUser ? currentUser.username : '')) return;
+
+          const activeUser = internalUsers.find(u => u.id === currentUserId);
+          if (activeUser) {
+            let matchesCurrentChat = false;
+            if (data.isGroup && activeUser.isGroup) {
+              matchesCurrentChat = true;
+            } else if (!data.isGroup && !activeUser.isGroup) {
+              const senderClean = (data.from || '').toLowerCase().trim();
+              const activeClean = (activeUser.username || '').toLowerCase().trim();
+              if (senderClean === activeClean) {
+                matchesCurrentChat = true;
+              }
+            }
+
+            if (matchesCurrentChat) {
+              const typingBar = document.getElementById("typingIndicator");
+              const typingText = document.getElementById("typingText");
+              if (typingBar && typingText) {
+                if (data.isTyping) {
+                  typingText.innerText = `${data.fromName || "Đối phương"} đang soạn tin...`;
+                  typingBar.style.display = "flex";
+                  scrollChatToBottom();
+
+                  if (window.typingAutoClearTimeout) clearTimeout(window.typingAutoClearTimeout);
+                  window.typingAutoClearTimeout = setTimeout(() => {
+                    typingBar.style.display = "none";
+                  }, 3800);
+                } else {
+                  typingBar.style.display = "none";
+                  if (window.typingAutoClearTimeout) clearTimeout(window.typingAutoClearTimeout);
+                }
               }
             }
           }
@@ -3278,8 +3802,14 @@ function setupEventListeners() {
     input.addEventListener("input", function() {
       this.style.height = "auto";
       this.style.height = (this.scrollHeight) + "px";
+      handleTypingInput();
     });
   }
+
+  // Các nút điều khiển ghi âm giọng nói trực tiếp
+  document.getElementById("btnVoiceMsg")?.addEventListener("click", startVoiceRecording);
+  document.getElementById("btnCancelVoiceRecording")?.addEventListener("click", cancelVoiceRecording);
+  document.getElementById("btnSendVoiceRecording")?.addEventListener("click", sendVoiceRecording);
 
   const fileInput = document.getElementById("fileInput");
   document.getElementById("btnAttachFile")?.addEventListener("click", () => {

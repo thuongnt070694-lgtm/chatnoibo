@@ -35,6 +35,24 @@ function saveAccounts() {
   }
 }
 
+// Khởi tạo thư mục tải lên tệp tin và tin nhắn thoại (uploads)
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+try {
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.error("Lỗi tạo thư mục uploads:", e);
+}
+
+function formatFileSize(bytes) {
+  if (!bytes || bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
 // Khởi tạo cơ sở dữ liệu phòng chat nhóm chung
 const GROUP_DB_FILE = path.join(__dirname, 'group_db.json');
 let groupInfo = {
@@ -1045,10 +1063,120 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 8. PHỤC VỤ STATIC FILES
-  let filePath = path.join(__dirname, pathname === '/' ? 'index.html' : pathname);
-  const ext = path.extname(filePath);
+  // 7.1 TẢI TỆP TIN & GHI ÂM THOẠI LÊN THƯ MỤC UPLOADS (STREAMING NHỊ PHÂN)
+  if (pathname === '/api/upload' && req.method === 'POST') {
+    try {
+      let rawFilename = req.headers['x-filename'] || url.searchParams.get('filename') || '';
+      try {
+        rawFilename = decodeURIComponent(rawFilename);
+      } catch (e) {}
 
+      if (!rawFilename) {
+        rawFilename = 'file_' + Date.now();
+      }
+
+      const ext = path.extname(rawFilename) || '';
+      const baseName = path.basename(rawFilename, ext).replace(/[^a-zA-Z0-9_\-\u00C0-\u1EF9\s]/g, '_').trim();
+      const safeFilename = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}_${baseName || 'upload'}${ext}`;
+      const destPath = path.join(UPLOADS_DIR, safeFilename);
+
+      const writeStream = fs.createWriteStream(destPath);
+      req.pipe(writeStream);
+
+      writeStream.on('finish', () => {
+        try {
+          const stats = fs.statSync(destPath);
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({
+            status: 'ok',
+            fileUrl: `/uploads/${encodeURIComponent(safeFilename)}`,
+            fileName: rawFilename,
+            fileSize: formatFileSize(stats.size),
+            sizeBytes: stats.size,
+            ext: ext.replace('.', '').toLowerCase()
+          }));
+        } catch (e) {
+          res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ error: 'Lỗi lấy thông tin tệp' }));
+        }
+      });
+
+      writeStream.on('error', (err) => {
+        console.error("Lỗi ghi tệp upload:", err);
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'Lỗi lưu tệp lên máy chủ' }));
+      });
+    } catch (err) {
+      console.error("Lỗi upload:", err);
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: 'Lỗi xử lý tải tệp' }));
+    }
+    return;
+  }
+
+  // 7.2 TÍN HIỆU ĐANG SOẠN TIN NHẮN (TYPING INDICATOR)
+  if (pathname === '/api/typing' && req.method === 'POST') {
+    try {
+      const data = await parseJsonBody(req);
+      const from = (data.from || '').toLowerCase().trim();
+      const fromName = data.fromName || from;
+      const targetUsername = (data.targetUsername || '').toLowerCase().trim();
+      const isGroup = !!data.isGroup;
+      const isTyping = !!data.isTyping;
+
+      const payload = {
+        from: from,
+        fromName: fromName,
+        targetUsername: targetUsername,
+        isGroup: isGroup,
+        isTyping: isTyping
+      };
+
+      if (isGroup) {
+        // Gửi tới các thành viên trong nhóm trừ người gửi
+        const groupMemberSet = new Set((groupInfo.members || []).map(m => (m || '').toLowerCase().trim()));
+        const ssePayload = `data: ${JSON.stringify({ type: 'user_typing', data: payload })}\n\n`;
+        clients.forEach(c => {
+          const u = (c.username || '').toLowerCase().trim();
+          if (u && u !== from && groupMemberSet.has(u)) {
+            try { c.res.write(ssePayload); } catch (e) {}
+          }
+        });
+      } else if (targetUsername) {
+        // Gửi trực tiếp tới người nhận 1-1
+        const ssePayload = `data: ${JSON.stringify({ type: 'user_typing', data: payload })}\n\n`;
+        clients.filter(c => (c.username || '').toLowerCase().trim() === targetUsername).forEach(c => {
+          try { c.res.write(ssePayload); } catch (e) {}
+        });
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok' }));
+    } catch (e) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Lỗi tín hiệu đang soạn tin' }));
+    }
+    return;
+  }
+
+  // 8. PHỤC VỤ STATIC FILES & CÁC TỆP ĐƯỢC TẢI LÊN (UPLOADS STREAMING)
+  let cleanPath = pathname;
+  try {
+    cleanPath = decodeURIComponent(pathname);
+  } catch (e) {}
+
+  // Kiểm tra an toàn chống path traversal
+  const normalizedPath = path.normalize(cleanPath).replace(/^(\.\.[\/\\])+/, '');
+  let filePath = path.join(__dirname, normalizedPath === '/' ? 'index.html' : normalizedPath);
+
+  // Đảm bảo không truy cập ra ngoài thư mục dự án
+  if (!filePath.startsWith(__dirname)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('403 Forbidden');
+    return;
+  }
+
+  const ext = path.extname(filePath).toLowerCase();
   const contentTypes = {
     '.html': 'text/html; charset=utf-8',
     '.css': 'text/css; charset=utf-8',
@@ -1056,22 +1184,64 @@ const server = http.createServer(async (req, res) => {
     '.json': 'application/json; charset=utf-8',
     '.png': 'image/png',
     '.jpg': 'image/jpeg',
-    '.svg': 'image/svg+xml'
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.webm': 'audio/webm',
+    '.ogg': 'audio/ogg',
+    '.mp4': 'video/mp4',
+    '.pdf': 'application/pdf',
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.xls': 'application/vnd.ms-excel',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.zip': 'application/zip',
+    '.rar': 'application/x-rar-compressed',
+    '.txt': 'text/plain; charset=utf-8'
   };
 
-  fs.readFile(filePath, (err, content) => {
-    if (err) {
+  fs.stat(filePath, (err, stats) => {
+    if (err || !stats.isFile()) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('404 Not Found');
-    } else {
-      res.writeHead(200, {
-        'Content-Type': contentTypes[ext] || 'application/octet-stream',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      });
-      res.end(content);
+      return;
     }
+
+    const contentType = contentTypes[ext] || 'application/octet-stream';
+    const range = req.headers.range;
+
+    // Hỗ trợ Range Request cho audio/video seeking trên trình duyệt
+    if (range && (contentType.startsWith('audio/') || contentType.startsWith('video/'))) {
+      const parts = range.replace(/bytes=/, "").split("-");
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : stats.size - 1;
+      const chunksize = (end - start) + 1;
+      const fileStream = fs.createReadStream(filePath, { start, end });
+
+      res.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${stats.size}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunksize,
+        'Content-Type': contentType,
+        'Access-Control-Allow-Origin': '*'
+      });
+      fileStream.pipe(res);
+      return;
+    }
+
+    // Stream trực tiếp file cho client (nhẹ RAM, tải mượt mà các file hàng chục MB)
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Content-Length': stats.size,
+      'Accept-Ranges': 'bytes',
+      'Cache-Control': filePath.includes('uploads') ? 'public, max-age=86400' : 'no-cache, no-store, must-revalidate',
+      'Access-Control-Allow-Origin': '*'
+    });
+    fs.createReadStream(filePath).pipe(res);
   });
 });
 

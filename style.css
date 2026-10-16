@@ -49,9 +49,9 @@
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
 
-  /* Nền cam nhẹ và viền cam nhẹ cho Header và Footer */
-  --bg-orange-soft: #fff3e8;
-  --border-orange-soft: #fed7aa;
+  /* Nền cam và viền cam cho Header và Footer (đậm hơn, rõ nét hơn) */
+  --bg-orange-soft: #fed7aa;
+  --border-orange-soft: #fdba74;
 
   /* Kích thước layout */
   --width-panel-left: 350px;
@@ -70,8 +70,8 @@ body.theme-dark {
   --bg-hover: #1e293b;
   --bg-active: #334155;
 
-  --bg-orange-soft: rgba(251, 146, 60, 0.12);
-  --border-orange-soft: rgba(251, 146, 60, 0.25);
+  --bg-orange-soft: rgba(251, 146, 60, 0.18);
+  --border-orange-soft: rgba(251, 146, 60, 0.35);
   --height-bottom-bar: 68px;
 
   --text-primary: #f8fafc;
@@ -940,6 +940,266 @@ body.theme-dark .msg-file-card {
 }
 .msg-file-download-btn:hover {
   opacity: 0.7;
+}
+
+/* ==========================================
+   TIN NHẮN THOẠI (VOICE MEMO PLAYER)
+   ========================================== */
+.msg-voice-player {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  margin-top: 4px;
+  min-width: 210px;
+  max-width: 290px;
+  user-select: none;
+}
+body.theme-dark .msg-voice-player {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+.voice-play-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background-color: var(--primary-color);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.15s, background-color 0.2s;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+.voice-play-btn:hover {
+  transform: scale(1.08);
+}
+.voice-play-btn:active {
+  transform: scale(0.95);
+}
+.voice-play-btn i {
+  font-size: 13px;
+  margin-left: 2px;
+}
+.voice-play-btn.playing i {
+  margin-left: 0;
+}
+.voice-waveform-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.voice-progress-track {
+  width: 100%;
+  height: 6px;
+  background-color: rgba(0, 0, 0, 0.12);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+}
+body.theme-dark .voice-progress-track {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+.voice-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--primary-color), #f97316);
+  border-radius: 3px;
+  transition: width 0.1s linear;
+}
+.voice-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  opacity: 0.85;
+}
+.voice-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+.voice-download-link {
+  color: inherit;
+  opacity: 0.7;
+  font-size: 12px;
+  transition: opacity 0.2s;
+}
+.voice-download-link:hover {
+  opacity: 1;
+}
+
+/* ==========================================
+   THANH GHI ÂM THOẠI TRỰC TIẾP TRÊN INPUT BAR
+   ========================================== */
+.voice-recorder-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  gap: 12px;
+}
+.voice-recorder-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+.recording-pulse-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
+  animation: recPulse 1.2s infinite ease-in-out;
+  flex-shrink: 0;
+}
+@keyframes recPulse {
+  0%, 100% { transform: scale(0.9); opacity: 0.6; }
+  50% { transform: scale(1.25); opacity: 1; }
+}
+.recording-timer {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ef4444;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+.voice-waveform-preview {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.v-wave-bar {
+  width: 3px;
+  background-color: var(--primary-color);
+  border-radius: 2px;
+  animation: vWaveAnim 1s infinite ease-in-out;
+}
+.v-wave-bar:nth-child(1) { height: 6px; animation-delay: 0.1s; }
+.v-wave-bar:nth-child(2) { height: 16px; animation-delay: 0.25s; }
+.v-wave-bar:nth-child(3) { height: 10px; animation-delay: 0.4s; }
+.v-wave-bar:nth-child(4) { height: 18px; animation-delay: 0.15s; }
+.v-wave-bar:nth-child(5) { height: 8px; animation-delay: 0.35s; }
+
+@keyframes vWaveAnim {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1.3); }
+}
+.recording-hint-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.voice-recorder-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.btn-voice-cancel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-voice-cancel:hover {
+  background-color: rgba(239, 68, 68, 0.2);
+}
+.btn-voice-send {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  background-color: var(--primary-color);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(234, 88, 12, 0.35);
+}
+.btn-voice-send:hover {
+  background-color: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+/* ==========================================
+   TIẾN ĐỘ TẢI FILE LÊN MÁY CHỦ
+   ========================================== */
+.upload-progress-banner {
+  padding: 8px 20px;
+  background-color: var(--bg-hover);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.upload-spin-icon {
+  font-size: 18px;
+  animation: pulseUpload 1.5s infinite;
+}
+@keyframes pulseUpload {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+.upload-progress-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.upload-progress-title {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.upload-progress-track {
+  width: 100%;
+  height: 4px;
+  background-color: var(--border-color);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.upload-progress-fill {
+  height: 100%;
+  background-color: var(--primary-color);
+  border-radius: 2px;
+  transition: width 0.2s ease;
+}
+.upload-progress-percent {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--primary-color);
 }
 
 /* Typing Indicator Bar */

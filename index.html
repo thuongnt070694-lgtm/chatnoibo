@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <!-- Font Awesome CDN for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="style.css?v=5.3">
+  <link rel="stylesheet" href="style.css?v=5.5">
 </head>
 <body class="theme-light">
   <div class="chat-app-container">
@@ -178,9 +178,45 @@
         <span id="chatLockedText">Chỉ Trưởng nhóm và Phó nhóm mới có thể gửi tin nhắn lúc này.</span>
       </div>
 
+      <!-- Thanh hiển thị tiến độ tải file lên máy chủ -->
+      <div class="upload-progress-banner" id="uploadProgressBanner" style="display: none;">
+        <i class="fa-solid fa-cloud-arrow-up text-primary upload-spin-icon"></i>
+        <div class="upload-progress-info">
+          <span class="upload-progress-title" id="uploadProgressTitle">Đang tải tệp lên máy chủ...</span>
+          <div class="upload-progress-track">
+            <div class="upload-progress-fill" id="uploadProgressFill" style="width: 0%;"></div>
+          </div>
+        </div>
+        <span class="upload-progress-percent" id="uploadProgressPercent">0%</span>
+      </div>
+
       <!-- Khung nhập và gửi tin nhắn -->
-      <footer class="chat-input-bar">
-        <div class="input-actions-left">
+      <footer class="chat-input-bar" id="chatInputBar">
+        <!-- Thanh ghi âm tin nhắn thoại trực tiếp -->
+        <div class="voice-recorder-bar" id="voiceRecorderBar" style="display: none;">
+          <div class="voice-recorder-left">
+            <span class="recording-pulse-dot"></span>
+            <span class="recording-timer" id="recordingTimer">00:00</span>
+            <div class="voice-waveform-preview">
+              <span class="v-wave-bar"></span>
+              <span class="v-wave-bar"></span>
+              <span class="v-wave-bar"></span>
+              <span class="v-wave-bar"></span>
+              <span class="v-wave-bar"></span>
+            </div>
+            <span class="recording-hint-text">Đang ghi âm giọng nói...</span>
+          </div>
+          <div class="voice-recorder-actions">
+            <button class="btn-voice-cancel" id="btnCancelVoiceRecording" title="Hủy bỏ ghi âm">
+              <i class="fa-solid fa-trash-can"></i> Hủy
+            </button>
+            <button class="btn-voice-send" id="btnSendVoiceRecording" title="Gửi tin nhắn thoại ngay">
+              <i class="fa-solid fa-paper-plane"></i> Gửi
+            </button>
+          </div>
+        </div>
+
+        <div class="input-actions-left" id="inputActionsLeft">
           <!-- Đính kèm ảnh/tệp qua input file ẩn -->
           <input type="file" id="fileInput" style="display: none;" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt">
           <button class="btn-icon" id="btnAttachFile" title="Đính kèm tệp / ảnh">
@@ -210,11 +246,11 @@
           <span class="emoji-item">👏</span>
         </div>
 
-        <div class="message-input-wrapper">
+        <div class="message-input-wrapper" id="messageInputWrapper">
           <textarea id="messageInput" placeholder="Nhập tin nhắn nội bộ... (Nhấn Enter để gửi, Shift+Enter xuống dòng)" rows="1"></textarea>
         </div>
 
-        <div class="input-actions-right">
+        <div class="input-actions-right" id="inputActionsRight">
           <button class="btn-icon" id="btnVoiceMsg" title="Ghi âm thoại">
             <i class="fa-solid fa-microphone"></i>
           </button>
@@ -714,6 +750,6 @@
     <span id="toastMessage">Thông báo</span>
   </div>
 
-  <script src="app.js?v=5.3"></script>
+  <script src="app.js?v=5.5"></script>
 </body>
 </html>
