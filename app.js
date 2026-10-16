@@ -716,6 +716,13 @@ function selectUser(userId) {
     localStorage.setItem("chatexcel_last_active_conv", userId);
   } catch (e) {}
 
+  // Tự động đóng Drawer danh bạ trên mobile khi người dùng chạm chọn một người chat
+  if (window.innerWidth <= 768) {
+    document.getElementById("panelLeft")?.classList.remove("open");
+    document.getElementById("mobileBackdrop")?.classList.remove("active");
+    document.getElementById("btnToggleLeftMenu")?.classList.remove("active-toggle");
+  }
+
   document.querySelectorAll(".user-item-card").forEach(el => {
     el.classList.toggle("active", el.getAttribute("data-id") === userId);
   });
@@ -1905,9 +1912,18 @@ function setupCallingEvents() {
   const btnReject = document.getElementById("btnRejectIncomingCall");
 
   // Nút gọi từ header chat
-  btnVoiceCall?.addEventListener("click", () => startCall(false));
-  btnVideoCall?.addEventListener("click", () => startCall(true));
-  btnQuickCall?.addEventListener("click", () => startCall(false));
+  btnVoiceCall?.addEventListener("click", () => {
+    unlockAudioPlayback();
+    startCall(false);
+  });
+  btnVideoCall?.addEventListener("click", () => {
+    unlockAudioPlayback();
+    startCall(true);
+  });
+  btnQuickCall?.addEventListener("click", () => {
+    unlockAudioPlayback();
+    startCall(false);
+  });
 
   btnEndCall?.addEventListener("click", endCall);
 
@@ -1943,6 +1959,7 @@ function setupCallingEvents() {
 
   // Trả lời cuộc gọi đến
   btnAccept?.addEventListener("click", () => {
+    unlockAudioPlayback();
     hideIncomingCallAlert();
     stopRingtone();
     if (activeCall.pendingSignal) {
@@ -1964,6 +1981,47 @@ function setupCallingEvents() {
     }
     showToast("Đã từ chối cuộc gọi");
   });
+
+  // Cho phép bấm bất kỳ đâu trong Modal gọi để đánh thức âm thanh nếu trình duyệt tạm hoãn
+  document.getElementById("callModal")?.addEventListener("click", () => {
+    unlockAudioPlayback();
+  });
+}
+
+function unlockAudioPlayback() {
+  try {
+    const remoteAudio = document.getElementById("callRemoteAudio");
+    if (remoteAudio) {
+      remoteAudio.muted = false;
+      remoteAudio.volume = 1.0;
+      // Phát 1 buffer âm thanh câm WAV để cấp quyền autoplay vĩnh viễn trên Chrome/Safari/Mobile
+      if (!remoteAudio.srcObject && !remoteAudio.src) {
+        remoteAudio.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+        const p = remoteAudio.play();
+        if (p !== undefined) {
+          p.then(() => {
+            remoteAudio.pause();
+            remoteAudio.removeAttribute("src");
+          }).catch(() => {});
+        }
+      } else {
+        remoteAudio.play().catch(() => {});
+      }
+    }
+  } catch (e) {}
+
+  // Mở khóa Web Audio Context chạy song song
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) {
+      if (!window.webrtcAudioCtx) {
+        window.webrtcAudioCtx = new AudioCtx();
+      }
+      if (window.webrtcAudioCtx.state === 'suspended') {
+        window.webrtcAudioCtx.resume().catch(() => {});
+      }
+    }
+  } catch (e) {}
 }
 
 const rtcConfig = {
@@ -1973,8 +2031,9 @@ const rtcConfig = {
     { urls: "stun:stun2.l.google.com:19302" },
     { urls: "stun:stun3.l.google.com:19302" },
     { urls: "stun:stun4.l.google.com:19302" },
-    { urls: "stun:stun.services.mozilla.com" },
-    { urls: "stun:global.stun.twilio.com:3478" }
+    { urls: "stun:stun.cloudflare.com:3478" },
+    { urls: "stun:openrelay.metered.ca:80" },
+    { urls: "stun:openrelay.metered.ca:443" }
   ],
   iceCandidatePoolSize: 10
 };
@@ -2004,6 +2063,7 @@ function createVirtualAudioStream() {
 async function acquireMediaStream(isVideo) {
   let stream = null;
   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    // 1. Thử lấy chuẩn đầy đủ với lọc tiếng vang/tiếng ồn
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -2011,30 +2071,37 @@ async function acquireMediaStream(isVideo) {
           noiseSuppression: true,
           autoGainControl: true
         },
-        video: isVideo ? { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" } : false
+        video: isVideo ? { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } } : false
       });
       return stream;
-    } catch (err) {
-      console.warn("Không mở được Media đầy đủ, thử fallback audio:", err);
-      // Nếu video bị chiếm dụng (ví dụ 2 tab cùng máy tính), chuyển sang chỉ lấy mic
-      if (isVideo) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-            video: false
-          });
-          showToast("⚠️ Camera đang bận. Đã chuyển sang gọi thoại.");
-          return stream;
-        } catch (e2) {}
-      }
+    } catch (err1) {
+      console.warn("Lỗi cấu hình mic nâng cao, chuyển sang cấu hình cơ bản:", err1);
+    }
+
+    // 2. Thử cấu hình audio: true cơ bản (tương thích 100% Android, iOS, Windows)
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: isVideo ? true : false
+      });
+      return stream;
+    } catch (err2) {
+      console.warn("Lỗi cấu hình media cơ bản:", err2);
+    }
+
+    // 3. Nếu là cuộc gọi video nhưng camera bị lỗi/đang bận, cố gắng giữ mic để thoại
+    if (isVideo) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        showToast("⚠️ Camera không khả dụng, đã chuyển sang cuộc gọi thoại.");
+        return stream;
+      } catch (err3) {}
     }
   }
 
-  // Fallback khi máy tính không có microphone cắm vào
-  console.warn("Dùng Web Audio stream giả lập để cuộc gọi vẫn thông suốt");
-  stream = createVirtualAudioStream();
-  showToast("ℹ️ Thiết bị chưa có Micro, đang chạy chế độ đàm thoại thử nghiệm.");
-  return stream;
+  // 4. Nếu thiết bị hoàn toàn không cho phép truy cập micro
+  showToast("⚠️ Vui lòng cấp quyền Micro trên trình duyệt để đối phương nghe được giọng bạn!");
+  return createVirtualAudioStream();
 }
 
 function createPeerConnection(targetUsername) {
@@ -2062,7 +2129,7 @@ function createPeerConnection(targetUsername) {
   };
 
   pc.ontrack = (event) => {
-    console.log("WebRTC ontrack received track:", event.track, "streams:", event.streams);
+    console.log("WebRTC ontrack received track:", event.track, "kind:", event.track.kind);
     let stream = (event.streams && event.streams[0]) ? event.streams[0] : null;
     if (!stream) {
       if (!activeCall.remoteStream) {
@@ -2102,61 +2169,66 @@ function createPeerConnection(targetUsername) {
 function attachRemoteStream(remoteStream) {
   activeCall.remoteStream = remoteStream;
 
-  // 1. Phát qua thẻ <audio>
+  // 1. Phát qua thẻ <audio> chuyên biệt cho tiếng thoại
   const remoteAudio = document.getElementById("callRemoteAudio");
   if (remoteAudio) {
-    remoteAudio.srcObject = remoteStream;
+    if (remoteAudio.srcObject !== remoteStream) {
+      remoteAudio.srcObject = remoteStream;
+    }
     remoteAudio.muted = false;
     remoteAudio.volume = 1.0;
+    remoteAudio.setAttribute("playsinline", "");
+    remoteAudio.setAttribute("autoplay", "");
+
     const p = remoteAudio.play();
     if (p !== undefined) {
       p.catch(e => {
-        console.warn("Audio autoplay blocked by browser policy:", e);
+        console.warn("Audio autoplay blocked by browser policy, trying Web Audio fallback:", e);
+        try {
+          if (window.webrtcAudioCtx && window.webrtcAudioCtx.state === 'running') {
+            if (activeCall.webAudioSource) {
+              try { activeCall.webAudioSource.disconnect(); } catch (err) {}
+            }
+            activeCall.webAudioSource = window.webrtcAudioCtx.createMediaStreamSource(remoteStream);
+            activeCall.webAudioSource.connect(window.webrtcAudioCtx.destination);
+          }
+        } catch (err2) {
+          console.warn("WebAudio fallback failed:", err2);
+        }
+
         const unlock = () => {
+          unlockAudioPlayback();
           remoteAudio.play().catch(() => {});
           document.removeEventListener("click", unlock);
-          document.removeEventListener("keydown", unlock);
+          document.removeEventListener("touchstart", unlock);
         };
         document.addEventListener("click", unlock, { once: true });
-        document.addEventListener("keydown", unlock, { once: true });
+        document.addEventListener("touchstart", unlock, { once: true });
       });
     }
   }
 
-  // 2. Phát dự phòng qua Web Audio API Context (khuếch đại âm lượng đàm thoại rõ ràng)
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (AudioCtx && remoteStream.getAudioTracks().length > 0) {
-      if (!activeCall.playbackAudioCtx || activeCall.playbackAudioCtx.state === 'closed') {
-        activeCall.playbackAudioCtx = new AudioCtx();
-      }
-      if (activeCall.playbackAudioCtx.state === 'suspended') {
-        activeCall.playbackAudioCtx.resume().catch(() => {});
-      }
-      const src = activeCall.playbackAudioCtx.createMediaStreamSource(remoteStream);
-      const gain = activeCall.playbackAudioCtx.createGain();
-      gain.gain.setValueAtTime(1.2, activeCall.playbackAudioCtx.currentTime);
-      src.connect(gain);
-      gain.connect(activeCall.playbackAudioCtx.destination);
-    }
-  } catch (err) {
-    console.warn("Web Audio playback setup error:", err);
-  }
-
-  // 3. Khung hình Video (nếu có)
+  // 2. Khung hình Video (nếu có video track)
   const remoteVideo = document.getElementById("callRemoteVideo");
   const avatarStage = document.getElementById("callAvatarStage");
   const localVideo = document.getElementById("callLocalVideo");
 
   const hasVideoTrack = remoteStream.getVideoTracks().length > 0;
   if (remoteVideo && hasVideoTrack) {
-    remoteVideo.srcObject = remoteStream;
+    if (remoteVideo.srcObject !== remoteStream) {
+      remoteVideo.srcObject = remoteStream;
+    }
+    remoteVideo.muted = true; // Rất quan trọng: mute video element để không bị xung đột/chập tiếng với remoteAudio
+    remoteVideo.setAttribute("playsinline", "");
     remoteVideo.style.display = "block";
     remoteVideo.play().catch(e => {});
     if (avatarStage) avatarStage.style.display = "none";
     if (localVideo) localVideo.classList.add("pip");
   } else {
-    if (remoteVideo) remoteVideo.style.display = "none";
+    if (remoteVideo) {
+      remoteVideo.style.display = "none";
+      remoteVideo.srcObject = null;
+    }
     if (avatarStage) avatarStage.style.display = "flex";
     if (localVideo) localVideo.classList.remove("pip");
   }
@@ -2291,6 +2363,11 @@ function endCall() {
   if (activeCall.playbackAudioCtx) {
     try { activeCall.playbackAudioCtx.close(); } catch (e) {}
     activeCall.playbackAudioCtx = null;
+  }
+
+  if (activeCall.webAudioSource) {
+    try { activeCall.webAudioSource.disconnect(); } catch (e) {}
+    activeCall.webAudioSource = null;
   }
 
   if (activeCall.pc) {
@@ -3000,20 +3077,98 @@ function setupEventListeners() {
     });
   }
 
-  // Toggle Cột Phải
-  document.getElementById("btnToggleRightPanel")?.addEventListener("click", () => {
-    document.getElementById("panelRight")?.classList.toggle("collapsed");
-    document.getElementById("btnToggleRightPanel")?.classList.toggle("active-toggle");
-  });
-  document.getElementById("btnCloseRightPanel")?.addEventListener("click", () => {
-    document.getElementById("panelRight")?.classList.add("collapsed");
-    document.getElementById("btnToggleRightPanel")?.classList.remove("active-toggle");
+  // 1. Quản lý Bật/Tắt Cột Phải (Desktop & Mobile)
+  const panelRight = document.getElementById("panelRight");
+  const btnToggleRight = document.getElementById("btnToggleRightPanel");
+  const btnCloseRight = document.getElementById("btnCloseRightPanel");
+  const mobileBackdrop = document.getElementById("mobileBackdrop");
+  const panelLeft = document.getElementById("panelLeft");
+  const btnToggleLeft = document.getElementById("btnToggleLeftMenu");
+  const btnCloseLeft = document.getElementById("btnCloseLeftPanel");
+
+  btnToggleRight?.addEventListener("click", () => {
+    const isCollapsed = panelRight?.classList.toggle("collapsed");
+    btnToggleRight?.classList.toggle("active-toggle", !isCollapsed);
+    if (window.innerWidth <= 768) {
+      if (!isCollapsed) {
+        mobileBackdrop?.classList.add("active");
+        panelLeft?.classList.remove("open");
+        btnToggleLeft?.classList.remove("active-toggle");
+      } else {
+        mobileBackdrop?.classList.remove("active");
+      }
+    }
   });
 
-  // Mobile menu
-  document.getElementById("btnToggleLeftMenu")?.addEventListener("click", () => {
-    document.getElementById("panelLeft")?.classList.toggle("open");
+  btnCloseRight?.addEventListener("click", () => {
+    panelRight?.classList.add("collapsed");
+    btnToggleRight?.classList.remove("active-toggle");
+    if (window.innerWidth <= 768) {
+      mobileBackdrop?.classList.remove("active");
+    }
   });
+
+  // 2. Quản lý Bật/Tắt Cột Trái (Desktop: thu gọn | Mobile: trượt Drawer)
+  function toggleLeftSidebar() {
+    if (window.innerWidth <= 768) {
+      const isOpen = panelLeft?.classList.toggle("open");
+      if (isOpen) {
+        mobileBackdrop?.classList.add("active");
+        btnToggleLeft?.classList.add("active-toggle");
+        panelRight?.classList.add("collapsed");
+        btnToggleRight?.classList.remove("active-toggle");
+      } else {
+        mobileBackdrop?.classList.remove("active");
+        btnToggleLeft?.classList.remove("active-toggle");
+      }
+    } else {
+      const isCollapsed = panelLeft?.classList.toggle("collapsed");
+      btnToggleLeft?.classList.toggle("active-toggle", !isCollapsed);
+      try {
+        localStorage.setItem("chatexcel_left_collapsed", isCollapsed ? "1" : "0");
+      } catch (e) {}
+    }
+  }
+
+  function closeLeftSidebar() {
+    if (window.innerWidth <= 768) {
+      panelLeft?.classList.remove("open");
+      mobileBackdrop?.classList.remove("active");
+      btnToggleLeft?.classList.remove("active-toggle");
+    } else {
+      panelLeft?.classList.add("collapsed");
+      btnToggleLeft?.classList.remove("active-toggle");
+      try {
+        localStorage.setItem("chatexcel_left_collapsed", "1");
+      } catch (e) {}
+    }
+  }
+
+  btnToggleLeft?.addEventListener("click", toggleLeftSidebar);
+  btnCloseLeft?.addEventListener("click", closeLeftSidebar);
+
+  // Nhấn vào Backdrop trên mobile để đóng toàn bộ menu
+  mobileBackdrop?.addEventListener("click", () => {
+    panelLeft?.classList.remove("open");
+    panelRight?.classList.add("collapsed");
+    mobileBackdrop?.classList.remove("active");
+    btnToggleLeft?.classList.remove("active-toggle");
+    btnToggleRight?.classList.remove("active-toggle");
+  });
+
+  // Phục hồi trạng thái Menu Trái trên Desktop từ LocalStorage
+  if (window.innerWidth > 768) {
+    try {
+      const isLeftCollapsed = localStorage.getItem("chatexcel_left_collapsed") === "1";
+      if (isLeftCollapsed) {
+        panelLeft?.classList.add("collapsed");
+        btnToggleLeft?.classList.remove("active-toggle");
+      } else {
+        panelLeft?.classList.remove("collapsed");
+        btnToggleLeft?.classList.add("active-toggle");
+      }
+    } catch (e) {}
+  }
 
   // Tabs cột phải
   document.querySelectorAll(".media-tab-btn").forEach(btn => {

@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <!-- Font Awesome CDN for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="style.css?v=4.5">
+  <link rel="stylesheet" href="style.css?v=5.0">
 </head>
 <body class="theme-light">
   <div class="chat-app-container">
@@ -38,6 +38,9 @@
           </button>
           <button class="btn-icon" id="btnLogout" title="Đăng xuất tài khoản">
             <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          </button>
+          <button class="btn-icon" id="btnCloseLeftPanel" title="Thu gọn danh bạ (Đóng menu trái)">
+            <i class="fa-solid fa-chevron-left"></i>
           </button>
         </div>
       </div>
@@ -88,7 +91,7 @@
         </div>
       </div>
     </aside>
-
+    <div class="mobile-backdrop" id="mobileBackdrop"></div>
 
     <!-- ==============================================
          2. CỘT GIỮA: NỘI DUNG CUỘC TRÒ CHUYỆN CHÍNH
@@ -97,7 +100,7 @@
       <!-- Header cuộc trò chuyện đang mở -->
       <header class="chat-header">
         <div class="chat-recipient-info">
-          <button class="btn-icon mobile-menu-btn" id="btnToggleLeftMenu" title="Mở danh sách">
+          <button class="btn-icon btn-sidebar-toggle active-toggle" id="btnToggleLeftMenu" title="Bật/Tắt danh bạ liên hệ (Menu trái)">
             <i class="fa-solid fa-bars"></i>
           </button>
           <div class="recipient-avatar-wrapper">
@@ -710,6 +713,6 @@
     <span id="toastMessage">Thông báo</span>
   </div>
 
-  <script src="app.js?v=4.6"></script>
+  <script src="app.js?v=5.0"></script>
 </body>
 </html>

@@ -136,8 +136,10 @@ body {
   display: flex;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background-color: var(--bg-app);
+  position: relative;
 }
 
 /* Nút Icon chung */
@@ -191,8 +193,12 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   z-index: 10;
-  transition: transform 0.3s ease;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.panel-left.collapsed {
+  margin-left: calc(-1 * var(--width-panel-left));
 }
 
 /* Header tài khoản của tôi */
@@ -531,8 +537,8 @@ body.theme-dark .user-item-card.active {
   align-items: center;
   gap: 14px;
 }
-.mobile-menu-btn {
-  display: none;
+.btn-sidebar-toggle {
+  display: flex;
 }
 .recipient-avatar-wrapper {
   position: relative;
@@ -1472,8 +1478,26 @@ body.theme-dark .msg-file-card {
   to { transform: translateY(0); opacity: 1; }
 }
 
+/* Mobile Backdrop làm mờ khi mở menu trên mobile */
+.mobile-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  z-index: 90;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.mobile-backdrop.active {
+  display: block;
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* ==========================================================================
-   RESPONSIVE DESIGN (CHO LAPTOP & MÀN HÌNH NHỎ)
+   RESPONSIVE DESIGN (CHO MOBILE, TABLET & LAPTOP)
    ========================================================================== */
 @media (max-width: 1200px) {
   :root {
@@ -1484,30 +1508,158 @@ body.theme-dark .msg-file-card {
 
 @media (max-width: 992px) {
   .panel-right {
-    position: absolute;
+    position: fixed;
     right: 0;
     top: 0;
     bottom: 0;
-    box-shadow: -5px 0 20px rgba(0, 0, 0, 0.15);
+    box-shadow: -5px 0 24px rgba(0, 0, 0, 0.2);
     z-index: 20;
   }
 }
 
 @media (max-width: 768px) {
-  .mobile-menu-btn {
-    display: flex;
+  :root {
+    --width-panel-left: 86vw;
+    --width-panel-right: 88vw;
   }
+
+  .chat-app-container {
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* Cột trái dạng Drawer vuốt mở/đóng mượt mà */
   .panel-left {
-    position: absolute;
+    position: fixed;
     left: 0;
     top: 0;
     bottom: 0;
-    box-shadow: 5px 0 20px rgba(0, 0, 0, 0.15);
-    z-index: 20;
+    width: 86vw;
+    min-width: 86vw;
+    max-width: 330px;
+    box-shadow: 6px 0 25px rgba(0, 0, 0, 0.25);
+    z-index: 100;
     transform: translateX(-100%);
+    margin-left: 0 !important;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .panel-left.open {
     transform: translateX(0);
+  }
+
+  #btnCloseLeftPanel {
+    display: flex;
+  }
+
+  /* Cột giữa chiếm toàn màn hình trên điện thoại */
+  .panel-middle {
+    width: 100vw;
+    min-width: 100vw;
+    max-width: 100vw;
+  }
+
+  /* Header cuộc trò chuyện tối ưu không bị tràn */
+  .chat-header {
+    padding: 0 10px;
+    height: 60px;
+    min-height: 60px;
+  }
+  .chat-recipient-info {
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+  .recipient-avatar-wrapper {
+    width: 36px;
+    height: 36px;
+  }
+  .recipient-name {
+    font-size: 14px;
+    max-width: 120px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .recipient-status-text {
+    font-size: 11px;
+    max-width: 130px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dept-badge {
+    display: none;
+  }
+  .chat-header-actions {
+    gap: 2px;
+  }
+  .btn-icon {
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
+  }
+
+  /* Khung tin nhắn trên mobile */
+  .chat-messages-area {
+    padding: 12px 10px;
+    gap: 12px;
+  }
+  .message-row {
+    max-width: 88%;
+  }
+
+  /* Khung nhập tin nhắn trên mobile */
+  .chat-input-bar {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .message-input-wrapper textarea {
+    font-size: 14px;
+    padding: 7px 12px;
+  }
+  .input-actions-left, .input-actions-right {
+    gap: 2px;
+  }
+  .btn-send {
+    width: 36px;
+    height: 36px;
+  }
+
+  /* Cột phải trượt sang ngang */
+  .panel-right {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 88vw;
+    min-width: 88vw;
+    max-width: 340px;
+    box-shadow: -6px 0 25px rgba(0, 0, 0, 0.25);
+    z-index: 100;
+    transform: translateX(100%);
+    margin-right: 0 !important;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .panel-right:not(.collapsed) {
+    transform: translateX(0);
+  }
+  .panel-right.collapsed {
+    transform: translateX(100%);
+  }
+
+  /* Modal cuộc gọi & alert trên mobile */
+  .call-dialog {
+    width: 95%;
+    max-width: 380px;
+  }
+  .incoming-call-alert {
+    width: 92%;
+    left: 4%;
+    right: 4%;
+    bottom: 16px;
+    padding: 12px 16px;
   }
 }
 
@@ -2531,4 +2683,208 @@ body.theme-dark .chat-locked-banner {
   font-weight: 500;
   box-shadow: var(--shadow-sm);
   text-align: center;
+}
+
+/* ==========================================================================
+   LỚP PHỦ MỜ KHI MỞ DRAWER TRÊN MOBILE (MOBILE BACKDROP)
+   ========================================================================== */
+.mobile-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 998;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.mobile-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ==========================================================================
+   AUTO RESPONSIVE HOÀN HẢO CHO MOBILE (< 768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+  :root {
+    --width-panel-left: 85vw;
+    --width-panel-right: 88vw;
+    --height-header: 60px;
+    --height-bottom-bar: 62px;
+  }
+
+  .chat-app-container {
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Cột trái dạng Drawer trượt từ bên trái */
+  .panel-left {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 85vw;
+    max-width: 320px;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: none;
+  }
+  .panel-left.open {
+    transform: translateX(0);
+    box-shadow: 6px 0 24px rgba(0, 0, 0, 0.35);
+  }
+  .panel-left.collapsed {
+    /* Trên mobile dùng class open để kiểm soát hiển thị drawer */
+    margin-left: 0 !important;
+  }
+
+  /* Cột phải dạng Drawer trượt từ bên phải */
+  .panel-right {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 88vw;
+    max-width: 340px;
+    z-index: 1000;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: none;
+    margin-right: 0 !important;
+  }
+  .panel-right:not(.collapsed) {
+    transform: translateX(0);
+    box-shadow: -6px 0 24px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Cột giữa chiếm trọn 100vw màn hình điện thoại */
+  .panel-middle {
+    width: 100vw;
+    min-width: 100vw;
+    max-width: 100vw;
+    flex: 1;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  /* Header cuộc trò chuyện gọn gàng trên mobile */
+  .chat-header {
+    height: 60px;
+    min-height: 60px;
+    max-height: 60px;
+    padding: 0 10px;
+    gap: 8px;
+  }
+  .chat-recipient-info {
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+  .recipient-avatar-wrapper {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+  }
+  .recipient-details {
+    min-width: 0;
+  }
+  .recipient-name {
+    font-size: 14.5px;
+    max-width: 130px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dept-badge {
+    display: none; /* Ẩn bớt badge phòng ban trên điện thoại nhỏ */
+  }
+  .recipient-status-text {
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+  }
+
+  .chat-header-actions {
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .chat-header-actions .btn-icon {
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
+  }
+  #btnSearchChat {
+    display: none; /* Ẩn bớt nút tìm kiếm trên header di động */
+  }
+
+  /* Khu vực tin nhắn */
+  .messages-area {
+    padding: 12px 10px;
+  }
+  .message-bubble {
+    max-width: 86%;
+  }
+
+  /* Khung nhập tin nhắn đáy màn hình */
+  .chat-input-bar {
+    padding: 8px 10px;
+    gap: 6px;
+    min-height: 58px;
+  }
+  .chat-input-bar .btn-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 15px;
+  }
+  .chat-input-bar textarea {
+    font-size: 15px; /* Giúp không bị Safari auto-zoom khi chạm */
+    padding: 9px 12px;
+  }
+  .btn-send {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    font-size: 15px;
+  }
+
+  /* Alert cuộc gọi đến trên mobile */
+  .incoming-call-alert {
+    width: calc(100vw - 24px);
+    left: 12px;
+    transform: none;
+    top: 12px;
+    padding: 12px 16px;
+    gap: 12px;
+  }
+  @keyframes bounceInTop {
+    from { transform: translateY(-40px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  /* Modal cuộc gọi toàn màn hình */
+  .call-dialog {
+    width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-width: 100vw !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+
+  /* Popover thao tác thành viên */
+  .member-action-popover {
+    left: 16px !important;
+    right: 16px !important;
+    width: auto !important;
+    max-width: calc(100vw - 32px) !important;
+  }
 }
