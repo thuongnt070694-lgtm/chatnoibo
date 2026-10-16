@@ -80,6 +80,27 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("click", () => {
     requestNotificationPermission();
   }, { once: true });
+
+  // Khóa cứng viewport trên di động, ngăn chặn trình duyệt cuộn lệch trang làm khuất Header
+  if (window.visualViewport) {
+    const handleViewportChange = () => {
+      const container = document.querySelector('.chat-app-container');
+      if (container && window.innerWidth <= 768) {
+        container.style.height = `${window.visualViewport.height}px`;
+      }
+      window.scrollTo(0, 0);
+      document.body.scrollTop = 0;
+      document.documentElement.scrollTop = 0;
+    };
+    window.visualViewport.addEventListener('resize', handleViewportChange);
+    window.visualViewport.addEventListener('scroll', handleViewportChange);
+  }
+
+  window.addEventListener('scroll', () => {
+    if (window.scrollY !== 0 || window.scrollX !== 0) {
+      window.scrollTo(0, 0);
+    }
+  });
 });
 
 // ==========================================
@@ -956,9 +977,15 @@ function selectUser(userId) {
     }
   }
 
-  setTimeout(() => {
-    document.getElementById("messageInput")?.focus();
-  }, 100);
+  if (window.innerWidth > 768) {
+    setTimeout(() => {
+      document.getElementById("messageInput")?.focus({ preventScroll: true });
+    }, 100);
+  } else {
+    window.scrollTo(0, 0);
+    document.body.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
+  }
 }
 
 function renderMiddleChatHeader(user) {
@@ -975,7 +1002,9 @@ function renderMiddleChatHeader(user) {
 
   if (dot) dot.className = `status-indicator status-${user.status}`;
   if (statusText) {
-    statusText.innerHTML = `<i class="fa-solid fa-circle-dot"></i> ${user.statusText}`;
+    const isMobile = window.innerWidth <= 768;
+    const shortText = user.status === "online" ? "Đang trực tuyến" : "Ngoại tuyến";
+    statusText.innerHTML = `<i class="fa-solid fa-circle-dot"></i> ${isMobile ? shortText : user.statusText}`;
     statusText.style.color = user.status === "online" ? "var(--status-online)" : "var(--text-muted)";
   }
 
