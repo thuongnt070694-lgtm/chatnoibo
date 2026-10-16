@@ -49,9 +49,9 @@
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
 
-  /* Nền cam và viền cam cho Header và Footer (đậm hơn, rõ nét hơn) */
-  --bg-orange-soft: #fed7aa;
-  --border-orange-soft: #fdba74;
+  /* Nền cam và viền cam cho Header và Footer */
+  --bg-orange-soft: #eb6c20;
+  --border-orange-soft: #eb6c20;
 
   /* Kích thước layout */
   --width-panel-left: 350px;
@@ -70,8 +70,8 @@ body.theme-dark {
   --bg-hover: #1e293b;
   --bg-active: #334155;
 
-  --bg-orange-soft: rgba(251, 146, 60, 0.18);
-  --border-orange-soft: rgba(251, 146, 60, 0.35);
+  --bg-orange-soft: rgba(235, 108, 32, 0.22);
+  --border-orange-soft: #eb6c20;
   --height-bottom-bar: 68px;
 
   --text-primary: #f8fafc;
