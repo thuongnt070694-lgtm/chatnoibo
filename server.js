@@ -1167,7 +1167,8 @@ const server = http.createServer(async (req, res) => {
 
   // Kiểm tra an toàn chống path traversal
   const normalizedPath = path.normalize(cleanPath).replace(/^(\.\.[\/\\])+/, '');
-  let filePath = path.join(__dirname, normalizedPath === '/' ? 'index.html' : normalizedPath);
+  const isRoot = normalizedPath === '/' || normalizedPath === '\\' || normalizedPath === '.' || !normalizedPath;
+  let filePath = path.join(__dirname, isRoot ? 'index.html' : normalizedPath);
 
   // Đảm bảo không truy cập ra ngoài thư mục dự án
   if (!filePath.startsWith(__dirname)) {

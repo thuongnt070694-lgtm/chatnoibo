@@ -245,8 +245,8 @@ function onLoginSuccess(user, notify = true) {
     showToast(`👋 Chào mừng ${user.fullName} đã đăng nhập!`);
   }
 
-  // Tải danh bạ đồng nghiệp & kết nối thời gian thực
-  loadUsersAndSync();
+  // Tải danh bạ đồng nghiệp & kết nối thời gian thực (lần đầu khởi động)
+  loadUsersAndSync(true);
 }
 
 function renderCurrentUserUI() {
@@ -463,8 +463,14 @@ function hydrateMessagesIntoConversations(msgs) {
   const myUsername = (currentUser.username || '').toLowerCase().trim();
 
   const currentTotal = internalUsers.reduce((sum, u) => sum + (u.messages ? u.messages.length : 0), 0);
-  if (msgs.length === currentTotal && currentTotal > 0) {
-    return; // Tin nhắn không thay đổi, tránh giật màn hình
+  if (msgs.length === currentTotal) {
+    if (msgs.length === 0) return; // Cả hai đều không có tin nhắn mới, không cần làm gì
+    const lastIncoming = msgs[msgs.length - 1];
+    const allCurrentMsgs = internalUsers.flatMap(u => u.messages || []);
+    const currentLast = allCurrentMsgs.length > 0 ? allCurrentMsgs[allCurrentMsgs.length - 1] : null;
+    if (lastIncoming && currentLast && lastIncoming.id === currentLast.id) {
+      return; // Tin nhắn không thay đổi, tránh giật màn hình
+    }
   }
 
   // Reset mảng tin nhắn của từng hội thoại để nạp chính xác theo thời gian
@@ -664,7 +670,7 @@ async function loadMessagesHistory() {
   }
 }
 
-async function loadUsersAndSync() {
+async function loadUsersAndSync(isInitial = false) {
   try {
     const res = await fetch("/api/users");
     if (res.ok) {
@@ -681,8 +687,10 @@ async function loadUsersAndSync() {
     await loadMessagesHistory();
   }
 
-  // Kết nối Server-Sent Events với username của mình
-  initRealtimeSSE();
+  // Chỉ kết nối Server-Sent Events lần đầu, tránh vòng lặp reconnect gây nhấp nháy menu
+  if (isInitial || !currentEventSource) {
+    initRealtimeSSE();
+  }
 }
 
 function buildUserListFromAccounts(allAccounts, serverGroup) {
@@ -821,17 +829,21 @@ function renderUserList() {
       emptyMsg = "Hiện không có ai trực tuyến";
       emptyIcon = "fa-user-clock";
     }
-    container.innerHTML = `
+    const emptyHtml = `
       <div style="text-align: center; padding: 36px 16px; color: var(--text-muted);">
         <i class="fa-solid ${emptyIcon}" style="font-size: 28px; margin-bottom: 8px;"></i>
         <p style="font-size: 13px;">${emptyMsg}</p>
       </div>
     `;
+    if (container.dataset.renderedCache !== emptyHtml) {
+      container.dataset.renderedCache = emptyHtml;
+      container.innerHTML = emptyHtml;
+    }
     updateLiveStats();
     return;
   }
 
-  container.innerHTML = filteredUsers.map(user => {
+  const newHtml = filteredUsers.map(user => {
     const lastMsg = user.messages[user.messages.length - 1];
     let lastMsgText = user.isGroup ? "Nhóm chat chung" : "Sẵn sàng nhắn tin & gọi";
     let lastMsgTime = "";
@@ -842,6 +854,8 @@ function renderUserList() {
         lastMsgText = "📷 [Hình ảnh]";
       } else if (lastMsg.type === "file") {
         lastMsgText = `📎 [Tệp: ${lastMsg.fileName}]`;
+      } else if (lastMsg.type === "voice" || lastMsg.type === "audio") {
+        lastMsgText = `🎙️ [Tin nhắn thoại: ${lastMsg.durationText || 'Âm thanh'}]`;
       } else {
         lastMsgText = lastMsg.text || "";
       }
@@ -877,6 +891,16 @@ function renderUserList() {
       </div>
     `;
   }).join("");
+
+  // Chỉ ghi đè DOM khi nội dung thực sự thay đổi -> hoàn toàn không bị chớp giật hay nhấp nháy!
+  if (container.dataset.renderedCache === newHtml) {
+    updateLiveStats();
+    updateGlobalUnreadBadge();
+    return;
+  }
+
+  container.dataset.renderedCache = newHtml;
+  container.innerHTML = newHtml;
 
   updateLiveStats();
   updateGlobalUnreadBadge();
@@ -3308,13 +3332,10 @@ function initRealtimeSSE() {
     currentEventSource = null;
   }
 
-  // Polling dự phòng mỗi 3.5 giây để đảm bảo tin nhắn luôn luôn thông suốt ngay cả khi mạng chập chờn
-  if (!window._msgSyncPolling) {
-    window._msgSyncPolling = setInterval(() => {
-      if (currentUser && typeof loadMessagesHistory === "function") {
-        loadMessagesHistory();
-      }
-    }, 3500);
+  // Hủy polling cũ nếu có
+  if (window._msgSyncPolling) {
+    clearInterval(window._msgSyncPolling);
+    window._msgSyncPolling = null;
   }
 
   try {
@@ -3589,9 +3610,36 @@ function initRealtimeSSE() {
           }
         }
 
-        // 3. Người dùng mới đăng ký hoặc cập nhật online
-        if (type === "new_user_registered" || type === "profile_updated" || type === "users_online_update") {
-          loadUsersAndSync();
+        // 3. Người dùng cập nhật online / offline (cập nhật nhẹ nhàng, không phá hủy danh bạ)
+        if (type === "users_online_update" && Array.isArray(data)) {
+          const onlineSet = new Set(data.map(u => (u || '').toLowerCase().trim()));
+          let hasStatusChanged = false;
+
+          internalUsers.forEach(u => {
+            if (!u.isGroup && u.username) {
+              const isOnline = onlineSet.has(u.username.toLowerCase().trim());
+              const newStatus = isOnline ? "online" : "offline";
+              if (u.status !== newStatus) {
+                u.status = newStatus;
+                u.statusText = isOnline ? "Đang trực tuyến" : "Ngoại tuyến";
+                hasStatusChanged = true;
+              }
+            }
+          });
+
+          if (hasStatusChanged) {
+            renderUserList();
+            if (currentUserId) {
+              const cur = internalUsers.find(u => u.id === currentUserId);
+              if (cur) renderMiddleChatHeader(cur);
+            }
+          }
+          updateLiveStats();
+        }
+
+        // 3.1 Có người mới đăng ký hoặc cập nhật thông tin hồ sơ
+        if (type === "new_user_registered" || type === "profile_updated") {
+          loadUsersAndSync(false); // false để không kết nối lại SSE, tránh lặp
         }
 
         // 4. Nhóm chat cập nhật thành viên, vai trò, quyền hạn hoặc avatar

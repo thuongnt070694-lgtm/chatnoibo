@@ -4,28 +4,31 @@
    ========================================================================== */
 
 :root {
-  /* Bảng màu Giao diện Sáng (Light Theme) */
-  --bg-app: #f1f5f9;
-  --bg-panel-left: #ffffff;
-  --bg-panel-middle: #f8fafc;
-  --bg-panel-right: #ffffff;
-  --bg-header: #ffffff;
-  --bg-hover: #f1f5f9;
-  --bg-active: #e2e8f0;
+  /* Bảng màu Giao diện Doanh nghiệp Softdreams EasyInvoice */
+  --bg-app: #eef1f5;
+  --bg-panel-left: #2b3643;
+  --bg-panel-middle: #f0f2f5;
+  --bg-panel-right: #2b3643;
+  --bg-header: #2478ba;
+  --header-blue-bg: #2478ba;
+  --header-blue-border: #1c649c;
+  --bg-hover: #364150;
+  --bg-active: #1f4f78;
   
-  --text-primary: #0f172a;
+  --text-primary: #1e293b;
   --text-secondary: #475569;
   --text-muted: #94a3b8;
   --text-inverse: #ffffff;
 
   --border-color: #e2e8f0;
   --border-light: #edf2f7;
+  --border-dark-panel: #364150;
 
-  /* Màu chủ đạo (Brand Accent) */
-  --primary-color: #2563eb;
-  --primary-hover: #1d4ed8;
-  --primary-light: #eff6ff;
-  --primary-glow: rgba(37, 99, 235, 0.2);
+  /* Màu chủ đạo Softdreams Blue (Brand Accent) */
+  --primary-color: #2478ba;
+  --primary-hover: #1b66a0;
+  --primary-light: #e8f4fc;
+  --primary-glow: rgba(36, 120, 186, 0.25);
 
   /* Màu trạng thái */
   --status-online: #10b981;
@@ -34,7 +37,7 @@
   --status-busy: #ef4444;
 
   /* Bong bóng chat */
-  --bubble-sent-bg: linear-gradient(135deg, #2563eb, #3b82f6);
+  --bubble-sent-bg: linear-gradient(135deg, #2478ba, #1f6cad);
   --bubble-sent-text: #ffffff;
   --bubble-received-bg: #ffffff;
   --bubble-received-text: #1e293b;
@@ -45,13 +48,9 @@
   --radius-md: 10px;
   --radius-lg: 16px;
   --radius-full: 9999px;
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07);
-  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
-
-  /* Nền cam và viền cam cho Header và Footer */
-  --bg-orange-soft: #eb6c20;
-  --border-orange-soft: #eb6c20;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.08);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.12);
 
   /* Kích thước layout */
   --width-panel-left: 350px;
@@ -62,16 +61,16 @@
 
 /* Chế độ Tối (Dark Theme) */
 body.theme-dark {
-  --bg-app: #090d16;
-  --bg-panel-left: #0f172a;
-  --bg-panel-middle: #0b1120;
-  --bg-panel-right: #0f172a;
-  --bg-header: #0f172a;
-  --bg-hover: #1e293b;
-  --bg-active: #334155;
+  --bg-app: #0f141c;
+  --bg-panel-left: #1d2530;
+  --bg-panel-middle: #131922;
+  --bg-panel-right: #1d2530;
+  --bg-header: #1a5685;
+  --header-blue-bg: #1a5685;
+  --header-blue-border: #144368;
+  --bg-hover: #263140;
+  --bg-active: #1e3a5f;
 
-  --bg-orange-soft: rgba(235, 108, 32, 0.22);
-  --border-orange-soft: #eb6c20;
   --height-bottom-bar: 68px;
 
   --text-primary: #f8fafc;
@@ -79,23 +78,24 @@ body.theme-dark {
   --text-muted: #64748b;
   --text-inverse: #0f172a;
 
-  --border-color: #1e293b;
-  --border-light: #182234;
+  --border-color: #263140;
+  --border-light: #1e2733;
+  --border-dark-panel: #263140;
 
-  --primary-color: #3b82f6;
-  --primary-hover: #60a5fa;
-  --primary-light: rgba(59, 130, 246, 0.15);
-  --primary-glow: rgba(59, 130, 246, 0.3);
+  --primary-color: #38bdf8;
+  --primary-hover: #0284c7;
+  --primary-light: rgba(56, 189, 248, 0.15);
+  --primary-glow: rgba(56, 189, 248, 0.3);
 
-  --bubble-sent-bg: linear-gradient(135deg, #2563eb, #1d4ed8);
+  --bubble-sent-bg: linear-gradient(135deg, #1d69a6, #165282);
   --bubble-sent-text: #ffffff;
-  --bubble-received-bg: #1e293b;
+  --bubble-received-bg: #1e2633;
   --bubble-received-text: #f1f5f9;
-  --bubble-received-border: #334155;
+  --bubble-received-border: #2b3648;
 
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
-  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.5);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.5);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.6);
 }
 
 /* Reset CSS */
@@ -200,7 +200,7 @@ html, body {
   min-width: var(--width-panel-left);
   max-width: var(--width-panel-left);
   background-color: var(--bg-panel-left);
-  border-right: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-dark-panel, #364150);
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -212,24 +212,59 @@ html, body {
   margin-left: calc(-1 * var(--width-panel-left));
 }
 
-/* Header tài khoản của tôi */
-.user-my-profile {
+/* Khối Logo Thương Hiệu Softdreams (Khung góc trên bên trái) */
+.brand-top-bar {
   height: var(--height-header, 72px);
   min-height: var(--height-header, 72px);
   max-height: var(--height-header, 72px);
+  box-sizing: border-box;
+  background-color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border-bottom: 1px solid #dce2e8;
+  border-right: 1px solid #dce2e8;
+  flex-shrink: 0;
+  z-index: 12;
+}
+.brand-logo-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  text-decoration: none;
+}
+.brand-logo-img {
+  max-height: 42px;
+  max-width: 100%;
+  width: auto;
+  object-fit: contain;
+  transition: transform 0.2s ease;
+}
+.brand-logo-link:hover .brand-logo-img {
+  transform: scale(1.03);
+}
+
+/* Header tài khoản của tôi */
+.user-my-profile {
+  height: 64px;
+  min-height: 64px;
+  max-height: 64px;
   box-sizing: border-box;
   padding: 0 16px;
   display: flex;
   align-items: center;
   gap: 12px;
-  border-bottom: 1px solid var(--border-orange-soft);
-  background-color: var(--bg-orange-soft);
+  border-bottom: 1px solid #364150;
+  background-color: #242e39;
   flex-shrink: 0;
 }
 .my-avatar-wrapper {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   flex-shrink: 0;
   cursor: pointer;
   transition: transform 0.2s ease;
@@ -242,23 +277,23 @@ html, body {
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--border-color);
+  border: 2px solid #3e4b5c;
 }
 .my-info {
   flex: 1;
   min-width: 0;
 }
 .my-name {
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #ffffff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .my-role {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: 11.5px;
+  color: #94a3b8;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -268,14 +303,22 @@ html, body {
   display: flex;
   gap: 4px;
 }
+.user-my-profile .btn-icon {
+  color: #cbd5e1;
+  background: transparent;
+}
+.user-my-profile .btn-icon:hover {
+  background-color: #364150;
+  color: #ffffff;
+}
 
 /* Thống kê người truy cập (Live Stats) */
 .live-stats-bar {
   display: flex;
   gap: 8px;
-  padding: 10px 16px;
-  background-color: var(--bg-hover);
-  border-bottom: 1px solid var(--border-color);
+  padding: 8px 16px;
+  background-color: #242e39;
+  border-bottom: 1px solid #364150;
 }
 .stat-pill {
   display: flex;
@@ -287,12 +330,12 @@ html, body {
   border-radius: var(--radius-full);
 }
 .online-pill {
-  background-color: rgba(16, 185, 129, 0.12);
-  color: #059669;
+  background-color: rgba(16, 185, 129, 0.16);
+  color: #34d399;
 }
 .total-pill {
-  background-color: var(--bg-active);
-  color: var(--text-secondary);
+  background-color: #364150;
+  color: #cbd5e1;
 }
 .dot-pulse {
   width: 8px;
@@ -312,7 +355,7 @@ html, body {
 .btn-new-chat {
   width: 100%;
   padding: 9px 14px;
-  background-color: var(--primary-color);
+  background-color: #2478ba;
   color: #ffffff;
   border: none;
   border-radius: var(--radius-md);
@@ -324,10 +367,10 @@ html, body {
   gap: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 2px 6px rgba(36, 120, 186, 0.3);
 }
 .btn-new-chat:hover {
-  background-color: var(--primary-hover);
+  background-color: #1b66a0;
   transform: translateY(-1px);
 }
 .btn-new-chat:active {
@@ -337,23 +380,24 @@ html, body {
 /* Thanh tìm kiếm */
 .search-box-wrapper {
   padding: 12px 16px;
+  background-color: #2b3643;
 }
 .search-input-group {
   position: relative;
   display: flex;
   align-items: center;
-  background-color: var(--bg-hover);
-  border: 1px solid var(--border-color);
+  background-color: #212832;
+  border: 1px solid #364150;
   border-radius: var(--radius-md);
   padding: 0 12px;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 .search-input-group:focus-within {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px var(--primary-glow);
+  border-color: #2478ba;
+  box-shadow: 0 0 0 2px rgba(36, 120, 186, 0.35);
 }
 .search-icon {
-  color: var(--text-muted);
+  color: #94a3b8;
   font-size: 14px;
   margin-right: 8px;
 }
@@ -364,12 +408,15 @@ html, body {
   background: transparent;
   outline: none;
   font-size: 13px;
-  color: var(--text-primary);
+  color: #ffffff;
+}
+.search-input-group input::placeholder {
+  color: #94a3b8;
 }
 .clear-search-btn {
   background: transparent;
   border: none;
-  color: var(--text-muted);
+  color: #94a3b8;
   cursor: pointer;
   padding: 4px;
 }
@@ -379,28 +426,30 @@ html, body {
   display: flex;
   padding: 0 16px 10px;
   gap: 8px;
-  border-bottom: 1px solid var(--border-color);
+  background-color: #2b3643;
+  border-bottom: 1px solid #364150;
 }
 .filter-btn {
   flex: 1;
   padding: 7px 10px;
-  background: transparent;
-  border: 1px solid var(--border-color);
+  background: #212832;
+  border: 1px solid #364150;
   border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: #94a3b8;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
 }
 .filter-btn:hover {
-  background-color: var(--bg-hover);
+  background-color: #364150;
+  color: #ffffff;
 }
 .filter-btn.active {
-  background-color: var(--primary-light);
-  border-color: var(--primary-color);
-  color: var(--primary-color);
+  background-color: #2478ba;
+  border-color: #2478ba;
+  color: #ffffff;
   font-weight: 600;
 }
 
@@ -409,6 +458,7 @@ html, body {
   flex: 1;
   overflow-y: auto;
   padding: 8px;
+  background-color: #2b3643;
 }
 .user-item-card {
   display: flex;
@@ -420,16 +470,17 @@ html, body {
   transition: background-color 0.15s ease;
   position: relative;
   margin-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 .user-item-card:hover {
-  background-color: var(--bg-hover);
+  background-color: #364150;
 }
 .user-item-card.active {
-  background-color: var(--primary-light);
-  border-left: 3px solid var(--primary-color);
+  background-color: #1f4f78;
+  border-left: 3px solid #38bdf8;
 }
 body.theme-dark .user-item-card.active {
-  background-color: rgba(59, 130, 246, 0.2);
+  background-color: #1f4f78;
 }
 
 .user-card-avatar {
@@ -451,14 +502,14 @@ body.theme-dark .user-item-card.active {
 .user-card-name {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #f8fafc;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .user-card-time {
   font-size: 11px;
-  color: var(--text-muted);
+  color: #94a3b8;
 }
 .user-card-sub {
   display: flex;
@@ -468,7 +519,7 @@ body.theme-dark .user-item-card.active {
 }
 .user-card-msg {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: #cbd5e1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -477,24 +528,24 @@ body.theme-dark .user-item-card.active {
    THÔNG BÁO TIN NHẮN CHƯA ĐỌC (UNREAD NOTIFICATIONS & BADGES)
    ========================================================================== */
 .user-item-card.has-unread {
-  background-color: rgba(239, 68, 68, 0.06);
+  background-color: rgba(239, 68, 68, 0.15);
 }
 body.theme-dark .user-item-card.has-unread {
-  background-color: rgba(239, 68, 68, 0.12);
+  background-color: rgba(239, 68, 68, 0.2);
 }
 .user-item-card.has-unread:hover {
-  background-color: rgba(239, 68, 68, 0.1);
+  background-color: rgba(239, 68, 68, 0.22);
 }
 .user-item-card.has-unread .user-card-name {
   font-weight: 700;
-  color: var(--text-primary);
+  color: #ffffff;
 }
 .user-item-card.has-unread .user-card-msg {
   font-weight: 600;
-  color: var(--text-primary);
+  color: #ffffff;
 }
 .user-item-card.has-unread .user-card-time {
-  color: #ef4444;
+  color: #f87171;
   font-weight: 700;
 }
 
@@ -529,7 +580,7 @@ body.theme-dark .user-item-card.has-unread {
   width: 12px;
   height: 12px;
   background-color: #ef4444;
-  border: 2px solid var(--bg-panel-left);
+  border: 2px solid #2b3643;
   border-radius: 50%;
   box-shadow: 0 0 6px rgba(239, 68, 68, 0.7);
   animation: unreadPulse 2s infinite;
@@ -560,17 +611,17 @@ body.theme-dark .user-item-card.has-unread {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--bg-header);
+  border: 2px solid #2478ba;
   box-shadow: 0 2px 6px rgba(239, 68, 68, 0.6);
   animation: unreadPulse 2s infinite;
 }
 .user-card-dept-tag {
   font-size: 10px;
-  background-color: var(--bg-hover);
-  color: var(--text-secondary);
+  background-color: #212832;
+  color: #94a3b8;
   padding: 2px 6px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-color);
+  border: 1px solid #364150;
   margin-top: 4px;
   display: inline-block;
 }
@@ -584,10 +635,10 @@ body.theme-dark .user-item-card.has-unread {
   display: flex;
   align-items: center;
   padding: 0 16px;
-  border-top: 1px solid var(--border-orange-soft);
-  background-color: var(--bg-orange-soft);
+  border-top: 1px solid #364150;
+  background-color: #212832;
   font-size: 12px;
-  color: var(--text-muted);
+  color: #94a3b8;
   flex-shrink: 0;
 }
 .network-status {
@@ -615,20 +666,21 @@ body.theme-dark .user-item-card.has-unread {
   overscroll-behavior: none;
 }
 
-/* Header cuộc trò chuyện */
+/* Header cuộc trò chuyện (Viền trên xanh Softdreams) */
 .chat-header {
   height: var(--height-header, 72px);
   min-height: var(--height-header, 72px);
   max-height: var(--height-header, 72px);
   box-sizing: border-box;
-  background-color: var(--bg-orange-soft);
-  border-bottom: 1px solid var(--border-orange-soft);
+  background-color: var(--header-blue-bg, #2478ba);
+  border-bottom: 1px solid var(--header-blue-border, #1c649c);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
   flex-shrink: 0;
   z-index: 10;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 .chat-recipient-info {
   display: flex;
@@ -656,28 +708,44 @@ body.theme-dark .user-item-card.has-unread {
 .recipient-name {
   font-size: 16px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #ffffff;
 }
 .dept-badge {
   font-size: 11px;
   font-weight: 500;
-  background-color: var(--primary-light);
-  color: var(--primary-color);
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
   padding: 2px 8px;
   border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.35);
 }
 .recipient-status-text {
   font-size: 12px;
-  color: var(--status-online);
+  color: #e0f2fe;
   margin-top: 2px;
   display: flex;
   align-items: center;
   gap: 5px;
 }
+.recipient-status-text i {
+  color: #34d399;
+}
 .chat-header-actions {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+.chat-header .btn-icon {
+  color: #ffffff;
+  background: transparent;
+}
+.chat-header .btn-icon:hover {
+  background-color: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+.chat-header .btn-icon.active-toggle {
+  background-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
 }
 
 /* Ghim tin nhắn (Pinned Banner) */
@@ -1271,19 +1339,37 @@ body.theme-dark .voice-progress-track {
   padding: 4px;
 }
 
-/* Thanh nhập tin nhắn (Input Bar) */
+/* Thanh nhập tin nhắn (Input Bar - Trắng sạch & Không viền cam) */
 .chat-input-bar {
   height: var(--height-bottom-bar, 68px);
   min-height: var(--height-bottom-bar, 68px);
   box-sizing: border-box;
-  background-color: var(--bg-orange-soft);
-  border-top: 1px solid var(--border-orange-soft);
+  background-color: #ffffff;
+  border-top: 1px solid #e2e8f0;
   padding: 0 20px;
   display: flex;
   align-items: center;
   gap: 10px;
   position: relative;
   flex-shrink: 0;
+}
+body.theme-dark .chat-input-bar {
+  background-color: #1e2633;
+  border-top: 1px solid #2b3648;
+}
+.chat-input-bar .btn-icon {
+  color: #64748b;
+}
+.chat-input-bar .btn-icon:hover {
+  color: #2478ba;
+  background-color: #f1f5f9;
+}
+body.theme-dark .chat-input-bar .btn-icon {
+  color: #94a3b8;
+}
+body.theme-dark .chat-input-bar .btn-icon:hover {
+  color: #38bdf8;
+  background-color: #263140;
 }
 .input-actions-left, .input-actions-right {
   display: flex;
@@ -1292,17 +1378,21 @@ body.theme-dark .voice-progress-track {
 }
 .message-input-wrapper {
   flex: 1;
-  background-color: var(--bg-panel-left);
-  border: 1px solid var(--border-color);
+  background-color: #f8fafc;
+  border: 1px solid #cbd5e1;
   border-radius: var(--radius-md);
   padding: 8px 12px;
   display: flex;
   align-items: center;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
+body.theme-dark .message-input-wrapper {
+  background-color: #131922;
+  border-color: #2b3648;
+}
 .message-input-wrapper:focus-within {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px var(--primary-glow);
+  border-color: #2478ba;
+  box-shadow: 0 0 0 2px rgba(36, 120, 186, 0.25);
 }
 #messageInput {
   width: 100%;
@@ -1318,7 +1408,7 @@ body.theme-dark .voice-progress-track {
 
 /* Nút gửi tin nhắn */
 .btn-send {
-  background-color: var(--primary-color);
+  background-color: #2478ba;
   color: #ffffff;
   border: none;
   width: 40px;
@@ -1332,7 +1422,7 @@ body.theme-dark .voice-progress-track {
   font-size: 16px;
 }
 .btn-send:hover {
-  background-color: var(--primary-hover);
+  background-color: #1b66a0;
   transform: translateY(-1px);
 }
 .btn-send:active {
@@ -1374,8 +1464,8 @@ body.theme-dark .voice-progress-track {
   width: var(--width-panel-right);
   min-width: var(--width-panel-right);
   max-width: var(--width-panel-right);
-  background-color: var(--bg-panel-right);
-  border-left: 1px solid var(--border-color);
+  background-color: var(--bg-panel-right, #2b3643);
+  border-left: 1px solid #364150;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -1386,24 +1476,33 @@ body.theme-dark .voice-progress-track {
   margin-right: calc(-1 * var(--width-panel-right));
 }
 
-/* Header cột phải */
+/* Header cột phải (Viền trên xanh Softdreams) */
 .panel-right-header {
   height: var(--height-header, 72px);
   min-height: var(--height-header, 72px);
   max-height: var(--height-header, 72px);
   box-sizing: border-box;
-  background-color: var(--bg-orange-soft);
-  border-bottom: 1px solid var(--border-orange-soft);
+  background-color: var(--header-blue-bg, #2478ba);
+  border-bottom: 1px solid var(--header-blue-border, #1c649c);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
   flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
-.panel-title {
+.panel-right-header .panel-title {
   font-size: 15px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #ffffff;
+}
+.panel-right-header .btn-icon {
+  color: #ffffff;
+  background: transparent;
+}
+.panel-right-header .btn-icon:hover {
+  background-color: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
 }
 
 /* Hồ sơ đối phương trong cột phải */
@@ -1413,7 +1512,8 @@ body.theme-dark .voice-progress-track {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid #364150;
+  background-color: #242e39;
 }
 .card-avatar-wrapper {
   position: relative;
@@ -1426,7 +1526,7 @@ body.theme-dark .voice-progress-track {
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
-  border: 3px solid var(--border-color);
+  border: 3px solid #3e4b5c;
   transition: all 0.2s ease;
 }
 
@@ -1435,7 +1535,7 @@ body.theme-dark .voice-progress-track {
   cursor: pointer;
 }
 .card-avatar-wrapper.is-group-avatar:hover .profile-card-img {
-  border-color: var(--primary-color);
+  border-color: #2478ba;
   transform: scale(1.03);
   filter: brightness(0.9);
 }
@@ -1445,10 +1545,10 @@ body.theme-dark .voice-progress-track {
   right: 0;
   width: 26px;
   height: 26px;
-  background-color: var(--primary-color);
+  background-color: #2478ba;
   color: #ffffff;
   border-radius: 50%;
-  border: 2px solid var(--bg-panel-right);
+  border: 2px solid #242e39;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1459,27 +1559,28 @@ body.theme-dark .voice-progress-track {
   z-index: 3;
 }
 .avatar-edit-badge:hover {
-  background-color: var(--primary-hover);
+  background-color: #1b66a0;
   transform: scale(1.15);
 }
 .profile-card-name {
   font-size: 16px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #ffffff;
 }
 .profile-card-title {
   font-size: 13px;
-  color: var(--text-secondary);
+  color: #cbd5e1;
   margin-top: 2px;
 }
 .profile-card-dept {
   font-size: 11px;
-  color: var(--primary-color);
-  background-color: var(--primary-light);
+  color: #38bdf8;
+  background-color: rgba(36, 120, 186, 0.25);
   padding: 3px 10px;
   border-radius: var(--radius-full);
   margin-top: 6px;
   font-weight: 500;
+  border: 1px solid rgba(56, 189, 248, 0.2);
 }
 
 .profile-quick-actions {
@@ -1491,12 +1592,12 @@ body.theme-dark .voice-progress-track {
 .quick-act-btn {
   flex: 1;
   padding: 7px 0;
-  background-color: var(--bg-hover);
-  border: 1px solid var(--border-color);
+  background-color: #364150;
+  border: 1px solid #455365;
   border-radius: var(--radius-md);
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: #f8fafc;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1505,15 +1606,15 @@ body.theme-dark .voice-progress-track {
   transition: all 0.2s;
 }
 .quick-act-btn:hover {
-  background-color: var(--primary-light);
-  color: var(--primary-color);
-  border-color: var(--primary-color);
+  background-color: #2478ba;
+  color: #ffffff;
+  border-color: #2478ba;
 }
 
 /* Khối thông tin chi tiết người truy cập */
 .info-accordion-section {
   padding: 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid #364150;
 }
 .section-title {
   display: flex;
@@ -1521,7 +1622,7 @@ body.theme-dark .voice-progress-track {
   gap: 8px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: #cbd5e1;
   margin-bottom: 12px;
 }
 .access-info-grid {
@@ -1536,10 +1637,10 @@ body.theme-dark .voice-progress-track {
   font-size: 12px;
 }
 .access-item .label {
-  color: var(--text-muted);
+  color: #94a3b8;
 }
 .access-item .value {
-  color: var(--text-primary);
+  color: #f8fafc;
   font-weight: 500;
   font-family: 'JetBrains Mono', monospace, sans-serif;
 }
@@ -1547,8 +1648,8 @@ body.theme-dark .voice-progress-track {
 /* Tabs Media / Files / Links */
 .media-tabs-header {
   display: flex;
-  border-bottom: 1px solid var(--border-color);
-  background-color: var(--bg-hover);
+  border-bottom: 1px solid #364150;
+  background-color: #212832;
   padding: 4px;
   margin: 12px 16px 0;
   border-radius: var(--radius-md);
@@ -1560,7 +1661,7 @@ body.theme-dark .voice-progress-track {
   border: none;
   font-size: 11.5px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: #94a3b8;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s;
@@ -1570,10 +1671,10 @@ body.theme-dark .voice-progress-track {
   gap: 4px;
 }
 .media-tab-btn.active {
-  background-color: var(--bg-panel-right);
-  color: var(--primary-color);
+  background-color: #2478ba;
+  color: #ffffff;
   font-weight: 600;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
 
 .tab-content-area {
@@ -1592,7 +1693,7 @@ body.theme-dark .voice-progress-track {
   border-radius: var(--radius-md);
   overflow: hidden;
   cursor: pointer;
-  background-color: var(--bg-hover);
+  background-color: #212832;
 }
 .media-grid-item img {
   width: 100%;
@@ -1631,12 +1732,12 @@ body.theme-dark .voice-progress-track {
   gap: 10px;
   padding: 8px 10px;
   border-radius: var(--radius-md);
-  background-color: var(--bg-hover);
-  border: 1px solid var(--border-color);
+  background-color: #242e39;
+  border: 1px solid #364150;
   transition: background-color 0.2s;
 }
 .file-list-item:hover {
-  background-color: var(--bg-active);
+  background-color: #364150;
 }
 .file-type-icon {
   font-size: 24px;
@@ -1654,25 +1755,25 @@ body.theme-dark .voice-progress-track {
 .file-item-name {
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #f8fafc;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .file-item-details {
   font-size: 11px;
-  color: var(--text-muted);
+  color: #94a3b8;
   margin-top: 2px;
 }
 .btn-download-file {
-  color: var(--text-secondary);
+  color: #94a3b8;
   font-size: 14px;
   padding: 6px;
   border-radius: 4px;
   text-decoration: none;
 }
 .btn-download-file:hover {
-  color: var(--primary-color);
+  color: #38bdf8;
 }
 
 /* Danh sách liên kết đã chia sẻ */
@@ -1686,18 +1787,18 @@ body.theme-dark .voice-progress-track {
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  background-color: var(--bg-hover);
+  background-color: #242e39;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
+  border: 1px solid #364150;
   text-decoration: none;
   color: inherit;
   transition: background-color 0.2s;
 }
 .link-list-item:hover {
-  background-color: var(--primary-light);
+  background-color: #364150;
 }
 .link-icon {
-  color: var(--primary-color);
+  color: #38bdf8;
   font-size: 14px;
 }
 .link-content {
@@ -1707,14 +1808,14 @@ body.theme-dark .voice-progress-track {
 .link-title {
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #f8fafc;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .link-url {
   font-size: 11px;
-  color: var(--primary-color);
+  color: #38bdf8;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1723,7 +1824,7 @@ body.theme-dark .voice-progress-track {
 /* Tùy chọn cài đặt cuộc trò chuyện */
 .chat-options-section {
   padding: 16px;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid #364150;
   margin-top: auto;
 }
 .options-list {
@@ -1739,19 +1840,20 @@ body.theme-dark .voice-progress-track {
   padding: 8px 10px;
   border-radius: var(--radius-sm);
   font-size: 12.5px;
-  color: var(--text-secondary);
+  color: #cbd5e1;
   cursor: pointer;
   transition: background-color 0.15s;
 }
 .option-item:hover {
-  background-color: var(--bg-hover);
-  color: var(--text-primary);
+  background-color: #364150;
+  color: #ffffff;
 }
 .option-item.danger {
-  color: #ef4444;
+  color: #f87171;
 }
 .option-item.danger:hover {
-  background-color: rgba(239, 68, 68, 0.1);
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
 }
 
 /* ==========================================================================
@@ -3155,8 +3257,8 @@ body.theme-dark .chat-locked-banner {
     z-index: 20;
     box-sizing: border-box;
     position: relative;
-    background-color: var(--bg-orange-soft);
-    border-bottom: 1px solid var(--border-orange-soft);
+    background-color: var(--header-blue-bg, #2478ba);
+    border-bottom: 1px solid var(--header-blue-border, #1c649c);
   }
   .chat-recipient-info {
     gap: 8px;
