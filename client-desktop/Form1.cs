@@ -226,6 +226,23 @@ public partial class Form1 : Form
                 }
             };
 
+            // Lắng nghe sự kiện từ giao diện Web (ví dụ: kích hoạt bộ gõ giọng nói Windows)
+            webView.CoreWebView2.WebMessageReceived += (s, e) =>
+            {
+                try
+                {
+                    string message = e.TryGetWebMessageAsString();
+                    if (message == "TRIGGER_VOICE_TYPING")
+                    {
+                        TriggerVoiceTyping();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Lỗi WebMessage: " + ex.Message);
+                }
+            };
+
             // Điều hướng tới máy chủ
             NavigateToServer();
         }
@@ -359,5 +376,26 @@ public partial class Form1 : Form
                 NavigateToServer();
             }
         }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, int dwExtraInfo);
+
+    private const byte VK_LWIN = 0x5B;
+    private const byte VK_H = 0x48;
+    private const uint KEYEVENTF_KEYUP = 0x0002;
+
+    public void TriggerVoiceTyping()
+    {
+        this.BeginInvoke(() =>
+        {
+            Task.Delay(120).ContinueWith(_ =>
+            {
+                keybd_event(VK_LWIN, 0, 0, 0);
+                keybd_event(VK_H, 0, 0, 0);
+                keybd_event(VK_H, 0, KEYEVENTF_KEYUP, 0);
+                keybd_event(VK_LWIN, 0, KEYEVENTF_KEYUP, 0);
+            });
+        });
     }
 }

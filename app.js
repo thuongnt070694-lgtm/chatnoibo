@@ -1581,13 +1581,28 @@ function toggleVoiceDictation() {
 }
 
 function startVoiceDictation() {
+  const msgInput = document.getElementById("messageInput");
+  if (msgInput) {
+    msgInput.focus();
+  }
+
+  // 1. Nếu đang chạy trong ứng dụng Desktop (EasyChat.exe):
+  // Tự động kích hoạt bộ gõ giọng nói tiếng Việt Windows 10/11 (Win + H)
+  if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
+    try {
+      window.chrome.webview.postMessage("TRIGGER_VOICE_TYPING");
+      showToast("🎙️ Đang mở bộ gõ giọng nói tiếng Việt (Windows + H)... Hãy nói nội dung tin nhắn!");
+      return;
+    } catch (e) {}
+  }
+
+  // 2. Nếu đang chạy trên trình duyệt web (Google Chrome, Edge):
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
-    showToast("⚠️ Trình duyệt của bạn chưa hỗ trợ nhận diện giọng nói tiếng Việt (hãy dùng Chrome hoặc Edge).");
+    showToast("💡 Mẹo: Nhấn tổ hợp phím [Windows + H] để gõ tiếng Việt bằng giọng nói!");
     return;
   }
 
-  const msgInput = document.getElementById("messageInput");
   const dictationBar = document.getElementById("voiceDictationBar");
   const btnDictation = document.getElementById("btnVoiceDictation");
   const statusText = document.getElementById("dictationStatusText");
@@ -1637,11 +1652,13 @@ function startVoiceDictation() {
     voiceDictationInstance.onerror = (event) => {
       console.warn("Lỗi nhận diện giọng nói:", event.error);
       if (event.error === 'not-allowed') {
-        showToast("⚠️ Vui lòng cấp quyền Micro trên trình duyệt để soạn tin bằng giọng nói!");
-        stopVoiceDictation();
+        showToast("⚠️ Vui lòng cấp quyền Micro hoặc nhấn phím [Windows + H] để nói!");
+      } else if (event.error === 'network') {
+        showToast("💡 Mẹo: Nhấn phím [Windows + H] trên bàn phím để gõ tiếng Việt bằng giọng nói!");
       } else if (event.error !== 'no-speech') {
-        stopVoiceDictation();
+        showToast("💡 Mẹo: Nhấn phím [Windows + H] để gõ tiếng Việt bằng giọng nói!");
       }
+      stopVoiceDictation();
     };
 
     voiceDictationInstance.onend = () => {
@@ -1658,8 +1675,8 @@ function startVoiceDictation() {
 
     voiceDictationInstance.start();
   } catch (err) {
-    console.error("Không thể khởi động SpeechRecognition:", err);
-    showToast("⚠️ Không thể khởi động nhận diện giọng nói: " + err.message);
+    console.warn("Không thể chạy SpeechRecognition:", err);
+    showToast("💡 Mẹo: Nhấn phím [Windows + H] trên bàn phím để gõ tiếng Việt bằng giọng nói!");
     stopVoiceDictation();
   }
 }
