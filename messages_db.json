@@ -1037,5 +1037,33 @@
     "targetId": "u_olaidie",
     "targetUsername": "olaidie",
     "isGroup": false
+  },
+  {
+    "id": "msg_1792222221854",
+    "sender": "me",
+    "senderName": "Test",
+    "senderUsername": "thuongnt2",
+    "type": "text",
+    "text": "e nhắn cho a thử đi",
+    "time": "14:30",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_olaidie",
+    "targetUsername": "olaidie",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792222458897",
+    "sender": "me",
+    "senderName": "Nguyễn Thị Bé",
+    "senderUsername": "pexinhh03",
+    "type": "text",
+    "text": "k có nghe đc",
+    "time": "14:34",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
   }
 ]

@@ -455,19 +455,32 @@ function requestNotificationPermission() {
 
 function showDesktopNotification(senderName, text) {
   try {
-    if (!("Notification" in window)) return;
-    if (Notification.permission === "granted" && document.visibilityState !== "visible") {
-      const notif = new Notification(`💬 ${senderName}`, {
-        body: text || "Đã gửi cho bạn một tin nhắn mới",
-        icon: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(senderName)}`,
-        tag: "chatexcel-msg",
-        renotify: true
-      });
-      notif.onclick = () => {
-        window.focus();
-        notif.close();
-      };
-      setTimeout(() => notif.close(), 6000);
+    // 1. Gửi tín hiệu sang EasyChat.exe (C# WinForms) để nhấp nháy Taskbar & hiện Popup góc phải
+    if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
+      window.chrome.webview.postMessage(JSON.stringify({
+        type: "NEW_MESSAGE_NOTIFICATION",
+        sender: senderName,
+        text: text || "Đã gửi cho bạn một tin nhắn mới"
+      }));
+    }
+
+    // 2. Thông báo trình duyệt Web (Chrome, Edge, Safari)
+    if ("Notification" in window) {
+      if (Notification.permission === "granted" && (document.visibilityState !== "visible" || !document.hasFocus())) {
+        const notif = new Notification(`EasyChat • ${senderName}`, {
+          body: text || "Đã gửi cho bạn một tin nhắn mới",
+          icon: "/icon.png",
+          tag: "easychat-msg-" + Date.now(),
+          renotify: true
+        });
+        notif.onclick = () => {
+          window.focus();
+          notif.close();
+        };
+        setTimeout(() => { try { notif.close(); } catch (e) {} }, 5000);
+      } else if (Notification.permission === "default") {
+        Notification.requestPermission().catch(() => {});
+      }
     }
   } catch (e) {}
 }
@@ -540,6 +553,20 @@ function hydrateMessagesIntoConversations(msgs) {
     const currentLast = allCurrentMsgs.length > 0 ? allCurrentMsgs[allCurrentMsgs.length - 1] : null;
     if (lastIncoming && currentLast && lastIncoming.id === currentLast.id) {
       return; // Tin nhắn không thay đổi, tránh giật màn hình
+    }
+  }
+
+  // Nếu có tin nhắn mới nhận từ đồng nghiệp (số tin nhắn tăng lên)
+  if (currentTotal > 0 && msgs.length > currentTotal) {
+    const lastIncoming = msgs[msgs.length - 1];
+    const isMe = Boolean(lastIncoming.senderUsername && lastIncoming.senderUsername.toLowerCase().trim() === myUsername);
+    if (!isMe) {
+      playNotificationChime();
+      const notifText = lastIncoming.type === 'voice' 
+        ? '[Tin nhắn thoại]' 
+        : (lastIncoming.text || (lastIncoming.type === 'image' ? '[Hình ảnh]' : '[Tệp tin]'));
+      showDesktopNotification(lastIncoming.senderName || lastIncoming.senderUsername || "Đồng nghiệp", notifText);
+      triggerTabTitleAlert(lastIncoming.senderName || "Tin nhắn mới");
     }
   }
 

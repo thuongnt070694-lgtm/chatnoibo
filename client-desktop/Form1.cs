@@ -64,6 +64,18 @@ public partial class Form1 : Form
         }
         catch {}
 
+        // Dừng nhấp nháy taskbar khi người dùng chuyển vào cửa sổ EasyChat
+        this.Activated += (s, e) => StopFlashTaskbar();
+        SetupNotifyIcon();
+        this.FormClosing += (s, e) =>
+        {
+            if (notifyIcon != null)
+            {
+                notifyIcon.Visible = false;
+                notifyIcon.Dispose();
+            }
+        };
+
         // Thanh menu tiện ích phía trên (rất gọn gàng)
         var menuStrip = new MenuStrip();
         var menuHeThong = new ToolStripMenuItem("Hệ thống");
@@ -297,19 +309,38 @@ public partial class Form1 : Form
                 }
             };
 
-            // Lắng nghe sự kiện từ giao diện Web (ví dụ: kích hoạt bộ gõ giọng nói Windows)
+            // Lắng nghe sự kiện từ giao diện Web
             webView.CoreWebView2.WebMessageReceived += (s, e) =>
             {
                 try
                 {
-                    string message = e.TryGetWebMessageAsString();
-                    if (message == "TRIGGER_VOICE_TYPING")
+                    string rawMessage = e.TryGetWebMessageAsString();
+                    string jsonMessage = "";
+                    try { jsonMessage = e.WebMessageAsJson; } catch {}
+
+                    if (rawMessage == "TRIGGER_VOICE_TYPING" || jsonMessage.Contains("TRIGGER_VOICE_TYPING"))
                     {
                         TriggerVoiceTyping();
                     }
-                    else if (message == "CHANGE_SERVER")
+                    else if (rawMessage == "CHANGE_SERVER" || jsonMessage.Contains("CHANGE_SERVER"))
                     {
                         this.BeginInvoke(() => ShowChangeServerDialog());
+                    }
+                    else if (jsonMessage.Contains("NEW_MESSAGE_NOTIFICATION") || (rawMessage != null && rawMessage.Contains("NEW_MESSAGE_NOTIFICATION")))
+                    {
+                        try
+                        {
+                            string parseTarget = (!string.IsNullOrEmpty(rawMessage) && rawMessage.StartsWith("{")) ? rawMessage : jsonMessage;
+                            using var doc = JsonDocument.Parse(parseTarget);
+                            var root = doc.RootElement;
+                            string sender = root.TryGetProperty("sender", out var sProp) ? (sProp.GetString() ?? "Đồng nghiệp") : "Đồng nghiệp";
+                            string text = root.TryGetProperty("text", out var tProp) ? (tProp.GetString() ?? "") : "";
+                            ShowDesktopNotification(sender, text);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Lỗi parse notification: " + ex.Message);
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -471,6 +502,127 @@ public partial class Form1 : Form
                 keybd_event(VK_H, 0, KEYEVENTF_KEYUP, 0);
                 keybd_event(VK_LWIN, 0, KEYEVENTF_KEYUP, 0);
             });
+        });
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool FlashWindowEx(ref FLASHWINFO pwfi);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct FLASHWINFO
+    {
+        public uint cbSize;
+        public IntPtr hwnd;
+        public uint dwFlags;
+        public uint uCount;
+        public uint dwTimeout;
+    }
+
+    private const uint FLASHW_STOP = 0;
+    private const uint FLASHW_TRAY = 2;
+    private const uint FLASHW_TIMERNOFG = 12; // Nhấp nháy liên tục cho đến khi người dùng chuyển vào cửa sổ
+
+    public void FlashTaskbar()
+    {
+        try
+        {
+            if (Form.ActiveForm == this) return; // Đang ở trong app thì không cần nhấp nháy
+
+            FLASHWINFO fInfo = new FLASHWINFO();
+            fInfo.cbSize = Convert.ToUInt32(System.Runtime.InteropServices.Marshal.SizeOf(fInfo));
+            fInfo.hwnd = this.Handle;
+            fInfo.dwFlags = FLASHW_TRAY | FLASHW_TIMERNOFG;
+            fInfo.uCount = uint.MaxValue;
+            fInfo.dwTimeout = 0;
+            FlashWindowEx(ref fInfo);
+        }
+        catch {}
+    }
+
+    public void StopFlashTaskbar()
+    {
+        try
+        {
+            FLASHWINFO fInfo = new FLASHWINFO();
+            fInfo.cbSize = Convert.ToUInt32(System.Runtime.InteropServices.Marshal.SizeOf(fInfo));
+            fInfo.hwnd = this.Handle;
+            fInfo.dwFlags = FLASHW_STOP;
+            fInfo.uCount = 0;
+            fInfo.dwTimeout = 0;
+            FlashWindowEx(ref fInfo);
+        }
+        catch {}
+    }
+
+    private NotifyIcon? notifyIcon;
+
+    private void SetupNotifyIcon()
+    {
+        try
+        {
+            notifyIcon = new NotifyIcon
+            {
+                Icon = this.Icon,
+                Text = "EasyChat - Softdreams",
+                Visible = true
+            };
+
+            notifyIcon.BalloonTipClicked += (s, e) =>
+            {
+                this.BeginInvoke(() =>
+                {
+                    if (this.WindowState == FormWindowState.Minimized)
+                    {
+                        this.WindowState = FormWindowState.Normal;
+                    }
+                    this.Show();
+                    this.Activate();
+                    this.BringToFront();
+                });
+            };
+
+            notifyIcon.DoubleClick += (s, e) =>
+            {
+                this.BeginInvoke(() =>
+                {
+                    if (this.WindowState == FormWindowState.Minimized)
+                    {
+                        this.WindowState = FormWindowState.Normal;
+                    }
+                    this.Show();
+                    this.Activate();
+                    this.BringToFront();
+                });
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Lỗi SetupNotifyIcon: " + ex.Message);
+        }
+    }
+
+    public void ShowDesktopNotification(string senderName, string messageText)
+    {
+        this.BeginInvoke(() =>
+        {
+            try
+            {
+                // 1. Nhấp nháy icon thanh Taskbar như Zalo
+                FlashTaskbar();
+
+                // 2. Hiện popup thông báo ở góc dưới bên phải màn hình
+                if (notifyIcon != null)
+                {
+                    string title = $"EasyChat • {senderName}";
+                    string snippet = string.IsNullOrWhiteSpace(messageText) ? "Đã gửi cho bạn một tin nhắn mới" : messageText;
+                    if (snippet.Length > 120) snippet = snippet.Substring(0, 117) + "...";
+                    notifyIcon.ShowBalloonTip(4000, title, snippet, ToolTipIcon.Info);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Lỗi ShowDesktopNotification: " + ex.Message);
+            }
         });
     }
 }
