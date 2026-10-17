@@ -325,7 +325,7 @@ function playNotificationChime() {
 
 // 2. Nhấp nháy tiêu đề Tab trình duyệt khi có tin nhắn chưa đọc
 let tabTitleInterval = null;
-const originalDocTitle = "Hệ Thống Chat Nội Bộ - Enterprise Internal Chat";
+const originalDocTitle = "EasyChat";
 
 function triggerTabTitleAlert(senderName) {
   const totalUnread = internalUsers.reduce((sum, u) => sum + (u.unreadCount || 0), 0);
@@ -344,7 +344,7 @@ function triggerTabTitleAlert(senderName) {
     }
     document.title = toggle
       ? `(${totalUnread}) 📩 Tin nhắn mới từ ${senderName || 'đồng nghiệp'}!`
-      : `🔔 (${totalUnread} tin chưa đọc) - Chat Nội Bộ`;
+      : `🔔 (${totalUnread} tin chưa đọc) - EasyChat`;
     toggle = !toggle;
   }, 1400);
 }
@@ -356,7 +356,7 @@ function clearTabTitleAlert() {
   }
   const totalUnread = internalUsers.reduce((sum, u) => sum + (u.unreadCount || 0), 0);
   if (totalUnread > 0) {
-    document.title = `(${totalUnread}) 📩 Chat Nội Bộ`;
+    document.title = `(${totalUnread}) 📩 EasyChat`;
   } else {
     document.title = originalDocTitle;
   }
@@ -2093,12 +2093,16 @@ async function startVoiceRecording() {
   }
 
   try {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showToast("Trình duyệt không hỗ trợ thu âm microphone.");
+    const getMedia = (navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+      ? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
+      : (navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia)?.bind(navigator);
+
+    if (!getMedia) {
+      showToast("⚠️ Trình duyệt chưa cấp quyền hoặc không hỗ trợ thu âm microphone.");
       return;
     }
 
-    recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recordingStream = await getMedia({ audio: true });
 
     let options = {};
     if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {

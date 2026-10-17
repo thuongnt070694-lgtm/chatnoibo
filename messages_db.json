@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "id": "msg_1792207376338",
+    "sender": "me",
+    "senderName": "duyenne",
+    "senderUsername": "duyen",
+    "type": "text",
+    "text": "alo",
+    "time": "10:22",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
+  }
+]

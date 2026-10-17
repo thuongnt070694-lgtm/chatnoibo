@@ -19,3 +19,9 @@ desktop.ini
 # User uploaded files
 uploads/*
 !uploads/.gitkeep
+
+# .NET Build artifacts
+client-desktop/bin/
+client-desktop/obj/
+dist-app/*.exe
+

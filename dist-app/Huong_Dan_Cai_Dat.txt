@@ -1,0 +1,24 @@
+======================================================================
+HƯỚNG DẪN SỬ DỤNG BẢN DESKTOP CLIENT EASYCHAT (SOFTDREAMS)
+======================================================================
+
+1. CÁCH DÙNG TRÊN MÁY TÍNH NÀY (HOẶC MÁY KHÁC CÙNG WI-FI / MẠNG LAN):
+   - Bạn chỉ cần nhấp đúp vào file: EasyChat.exe để mở ứng dụng.
+   - Ứng dụng sẽ mở cửa sổ Desktop độc lập (giao diện như Zalo Desktop), không phụ thuộc vào trình duyệt web.
+
+2. CÁCH CHIA SẺ SANG MÁY TÍNH KHÁC TRONG CÔNG TY:
+   - Copy cả thư mục "dist-app" (hoặc 2 file: EasyChat.exe và config.json) sang máy tính khác qua USB, Zalo, hoặc thư mục mạng chia sẻ.
+   - Máy tính khác KHÔNG CẦN cài đặt Node.js hay bất kỳ công cụ lập trình nào.
+   - Chỉ cần nhấp đúp file EasyChat.exe là vào chat được ngay!
+
+3. CƠ CHẾ TỰ ĐỘNG CẬP NHẬT (AUTO-UPDATE KHI BẠN SỬA CODE):
+   - Mọi thay đổi bạn thực hiện trên máy chủ (sửa app.js, style.css, server.js...):
+     -> Các máy tính khác mở ứng dụng lên (hoặc nhấn phím F5) sẽ TỰ ĐỘNG CẬP NHẬT NGAY LẬP TỨC.
+     -> Bạn KHÔNG BAO GIỜ phải gửi lại file .exe hay bắt nhân viên cài đặt lại!
+
+4. CÁC PHÍM TẮT TIỆN ÍCH TRONG ỨNG DỤNG:
+   - F5: Tải lại giao diện mới nhất từ máy chủ.
+   - F2: Đổi địa chỉ IP máy chủ (tiện lợi khi máy chủ đổi sang dải mạng mới).
+   - F11: Bật / Tắt chế độ toàn màn hình.
+   - F12: Mở bảng công cụ kiểm tra (DevTools) nếu cần kiểm tra lỗi.
+======================================================================
