@@ -628,13 +628,15 @@ function hydrateMessagesIntoConversations(msgs) {
   }
 }
 
-async function loadMessagesHistory() {
-  if (!currentUser) return;
+let _isSyncingMessagesHistory = false;
+async function loadMessagesHistory(skipLocalCache = false) {
+  if (!currentUser || _isSyncingMessagesHistory) return;
+  _isSyncingMessagesHistory = true;
   const cacheKey = getMsgCacheKey();
   let localMsgs = [];
 
-  // 1. Tải ngay từ LocalStorage để người dùng thấy tin nhắn ngay lập tức (0ms)
-  if (cacheKey) {
+  // 1. Tải ngay từ LocalStorage ở lần đầu mở (0ms)
+  if (!skipLocalCache && cacheKey) {
     try {
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
@@ -643,6 +645,11 @@ async function loadMessagesHistory() {
           hydrateMessagesIntoConversations(localMsgs);
         }
       }
+    } catch (e) {}
+  } else if (cacheKey) {
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) localMsgs = JSON.parse(cached) || [];
     } catch (e) {}
   }
 
@@ -671,7 +678,9 @@ async function loadMessagesHistory() {
       }
     }
   } catch (err) {
-    console.warn("Chưa thể đồng bộ tin nhắn từ máy chủ, vẫn dùng tin nhắn đã lưu trên máy:", err);
+    // Không ghi log để tránh spam console khi mất mạng tạm thời
+  } finally {
+    _isSyncingMessagesHistory = false;
   }
 }
 
@@ -4144,15 +4153,50 @@ let currentEventSource = null;
 function initRealtimeSSE() {
   if (!window.location.protocol.startsWith("http") || !currentUser) return;
 
+  // BẬT CƠ CHẾ ĐỒNG BỘ TIN NHẮN TỰ ĐỘNG CHẠY NGẦM SONG SONG (DUAL ENGINE)
+  // Quét mỗi 1.5 giây để đảm bảo dù SSE bị proxy Cloudflare buffer thì 100% tin nhắn vẫn tự nảy mà không bao giờ cần F5!
+  if (!window._msgSyncPolling) {
+    window._msgSyncPolling = setInterval(() => {
+      if (currentUser) {
+        loadMessagesHistory(true);
+      }
+    }, 1500);
+  }
+
+  // Cập nhật trạng thái online/offline của mọi người mỗi 6 giây
+  if (!window._userOnlinePolling) {
+    window._userOnlinePolling = setInterval(async () => {
+      if (!currentUser) return;
+      try {
+        const res = await fetch("/api/users");
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.users)) {
+            let changed = false;
+            const onlineSet = new Set((data.users || []).filter(u => u.isOnline).map(u => (u.username || '').toLowerCase()));
+            internalUsers.forEach(u => {
+              if (!u.isGroup && u.username) {
+                const isOnline = onlineSet.has(u.username.toLowerCase());
+                const newStatus = isOnline ? "online" : "offline";
+                if (u.status !== newStatus) {
+                  u.status = newStatus;
+                  u.statusText = isOnline ? "Đang trực tuyến • Sẵn sàng gọi & chat" : "Ngoại tuyến";
+                  changed = true;
+                }
+              }
+            });
+            if (changed) {
+              renderUserList();
+            }
+          }
+        }
+      } catch (e) {}
+    }, 6000);
+  }
+
   if (currentEventSource) {
     try { currentEventSource.close(); } catch (e) {}
     currentEventSource = null;
-  }
-
-  // Hủy polling cũ nếu có
-  if (window._msgSyncPolling) {
-    clearInterval(window._msgSyncPolling);
-    window._msgSyncPolling = null;
   }
 
   try {

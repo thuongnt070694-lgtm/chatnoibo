@@ -200,9 +200,11 @@ function getLocalIpAddress() {
 
 function broadcastEvent(eventType, data) {
   const payload = `data: ${JSON.stringify({ type: eventType, data })}\n\n`;
+  const padded = payload + ':' + ' '.repeat(2048) + '\n\n';
   clients.forEach(c => {
     try {
-      c.res.write(payload);
+      c.res.write(padded);
+      if (typeof c.res.flush === 'function') c.res.flush();
     } catch (err) {
       // client disconnected
     }
@@ -211,12 +213,26 @@ function broadcastEvent(eventType, data) {
 
 function sendToUser(targetUsername, eventType, data) {
   const payload = `data: ${JSON.stringify({ type: eventType, data })}\n\n`;
-  clients.filter(c => c.username === targetUsername).forEach(c => {
+  const padded = payload + ':' + ' '.repeat(2048) + '\n\n';
+  const targetLower = (targetUsername || '').toLowerCase().trim();
+  clients.filter(c => (c.username || '').toLowerCase().trim() === targetLower).forEach(c => {
     try {
-      c.res.write(payload);
+      c.res.write(padded);
+      if (typeof c.res.flush === 'function') c.res.flush();
     } catch (e) {}
   });
 }
+
+// Heartbeat ping định kỳ 15 giây để giữ kết nối SSE và ngăn Cloudflare đóng ngắt kết nối
+setInterval(() => {
+  const pingPayload = ': ping\n\n';
+  clients.forEach(c => {
+    try {
+      c.res.write(pingPayload);
+      if (typeof c.res.flush === 'function') c.res.flush();
+    } catch (e) {}
+  });
+}, 15000);
 
 function parseJsonBody(req) {
   return new Promise((resolve, reject) => {
@@ -257,7 +273,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     res.writeHead(200, {
-      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
       'X-Accel-Buffering': 'no',
@@ -270,8 +286,10 @@ const server = http.createServer(async (req, res) => {
     const clientObj = { id: clientId, username, res };
     clients.push(clientObj);
 
-    // Gửi ngay ping để xác nhận đường truyền SSE mở tức thì
+    // Gửi ngay 4KB comment padding để Cloudflare Tunnel chuyển tiếp SSE tức thì không bị giữ buffer
+    res.write(':' + ' '.repeat(4096) + '\n\n');
     res.write(': connected\n\n');
+    if (typeof res.flush === 'function') res.flush();
 
     // Gửi thông báo danh sách online mới
     broadcastEvent('users_online_update', getOnlineUsers());
@@ -899,9 +917,13 @@ const server = http.createServer(async (req, res) => {
         // Nhóm nội bộ: chỉ phát cho các thành viên trong nhóm
         const groupMemberSet = new Set((groupInfo.members || []).map(m => (m || '').toLowerCase().trim()));
         const payload = `data: ${JSON.stringify({ type: 'new_message', data: msgData })}\n\n`;
+        const padded = payload + ':' + ' '.repeat(2048) + '\n\n';
         clients.forEach(c => {
           if (c.username && groupMemberSet.has((c.username || '').toLowerCase().trim())) {
-            try { c.res.write(payload); } catch (err) {}
+            try { 
+              c.res.write(padded);
+              if (typeof c.res.flush === 'function') c.res.flush();
+            } catch (err) {}
           }
         });
       } else {
@@ -909,10 +931,14 @@ const server = http.createServer(async (req, res) => {
         const s = (msgData.senderUsername || '').toLowerCase().trim();
         const t = (msgData.targetUsername || (msgData.targetId ? msgData.targetId.replace(/^u_/, '') : '') || '').toLowerCase().trim();
         const payload = `data: ${JSON.stringify({ type: 'new_message', data: msgData })}\n\n`;
+        const padded = payload + ':' + ' '.repeat(2048) + '\n\n';
         clients.forEach(c => {
           const u = (c.username || '').toLowerCase().trim();
           if (u === s || u === t) {
-            try { c.res.write(payload); } catch (err) {}
+            try { 
+              c.res.write(padded);
+              if (typeof c.res.flush === 'function') c.res.flush();
+            } catch (err) {}
           }
         });
       }
