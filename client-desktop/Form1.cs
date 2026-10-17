@@ -1,6 +1,9 @@
 using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -11,7 +14,11 @@ namespace ChatDesktop;
 
 public class AppConfig
 {
-    public string ServerUrl { get; set; } = "https://annie-army-myers-lighting.trycloudflare.com";
+    public string ServerUrl { get; set; } = "https://prompt-your-industry-exercises.trycloudflare.com";
+    public bool EnableNotification { get; set; } = true;
+    public bool ShowMessagePreview { get; set; } = true;
+    public bool EnableTaskbarFlash { get; set; } = true;
+    public bool EnableTaskbarBadge { get; set; } = true;
 }
 
 public partial class Form1 : Form
@@ -23,14 +30,26 @@ public partial class Form1 : Form
         "config.json"
     );
     private readonly string localConfigFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json");
-    private string currentServerUrl = "https://annie-army-myers-lighting.trycloudflare.com";
+    private string currentServerUrl = "https://prompt-your-industry-exercises.trycloudflare.com";
     private bool isFullscreen = false;
     private FormWindowState prevWindowState = FormWindowState.Normal;
+
+    // Cài đặt thông báo & Riêng tư (Hình 1 & Hình 2)
+    private bool enableNotification = true;
+    private bool showMessagePreview = true;
+    private bool enableTaskbarFlash = true;
+    private bool enableTaskbarBadge = true;
+
+    private Icon? baseAppIcon = null;
+    private Icon? currentBadgedIcon = null;
+    private IntPtr currentOverlayIconHandle = IntPtr.Zero;
+    private ITaskbarList3? taskbarList = null;
 
     public Form1()
     {
         InitializeComponent();
         SetupWindow();
+        InitTaskbar();
         LoadConfig();
         InitWebViewAsync();
     }
@@ -61,11 +80,23 @@ public partial class Form1 : Form
                     if (icon != null) this.Icon = icon;
                 }
             }
+            if (this.Icon != null)
+            {
+                baseAppIcon = (Icon)this.Icon.Clone();
+            }
         }
         catch {}
 
         // Dừng nhấp nháy taskbar khi người dùng chuyển vào cửa sổ EasyChat
-        this.Activated += (s, e) => StopFlashTaskbar();
+        this.Activated += (s, e) =>
+        {
+            StopFlashTaskbar();
+            try
+            {
+                webView?.CoreWebView2?.PostWebMessageAsString("WINDOW_ACTIVATED");
+            }
+            catch {}
+        };
         SetupNotifyIcon();
         this.FormClosing += (s, e) =>
         {
@@ -81,11 +112,15 @@ public partial class Form1 : Form
         var menuHeThong = new ToolStripMenuItem("Hệ thống");
         
         var itemDoiIp = new ToolStripMenuItem("Cài đặt địa chỉ Máy chủ LAN (F2)...", null, (s, e) => ShowChangeServerDialog());
+        var itemNotif = new ToolStripMenuItem("Cài đặt Thông báo & Riêng tư (F3)...", null, (s, e) => {
+            webView?.CoreWebView2?.ExecuteScriptAsync("document.getElementById('settingsBtn')?.click();");
+        });
         var itemTaiLai = new ToolStripMenuItem("Tải lại giao diện mới nhất (F5)", null, (s, e) => webView?.Reload());
         var itemDevTools = new ToolStripMenuItem("Công cụ gỡ lỗi (F12)", null, (s, e) => webView?.CoreWebView2?.OpenDevToolsWindow());
         var itemThoat = new ToolStripMenuItem("Thoát", null, (s, e) => Application.Exit());
 
         menuHeThong.DropDownItems.Add(itemDoiIp);
+        menuHeThong.DropDownItems.Add(itemNotif);
         menuHeThong.DropDownItems.Add(itemTaiLai);
         menuHeThong.DropDownItems.Add(new ToolStripSeparator());
         menuHeThong.DropDownItems.Add(itemDevTools);
@@ -127,9 +162,9 @@ public partial class Form1 : Form
             {
                 string json = File.ReadAllText(localConfigFile);
                 var cfg = JsonSerializer.Deserialize<AppConfig>(json);
-                if (cfg != null && !string.IsNullOrWhiteSpace(cfg.ServerUrl))
+                if (cfg != null)
                 {
-                    currentServerUrl = cfg.ServerUrl.Trim();
+                    ApplyConfig(cfg);
                     return;
                 }
             }
@@ -139,25 +174,36 @@ public partial class Form1 : Form
             {
                 string json = File.ReadAllText(appDataConfigFile);
                 var cfg = JsonSerializer.Deserialize<AppConfig>(json);
-                if (cfg != null && !string.IsNullOrWhiteSpace(cfg.ServerUrl))
+                if (cfg != null)
                 {
-                    string saved = cfg.ServerUrl.Trim();
-                    // Nếu là IP LAN cũ 10.10.0.225 (không kết nối được ngoài Internet), tự chuyển sang Cloudflare
-                    if (!saved.Contains("10.10.0.225"))
-                    {
-                        currentServerUrl = saved;
-                        return;
-                    }
+                    ApplyConfig(cfg);
+                    return;
                 }
             }
 
             // 3. Mặc định dùng thẳng địa chỉ Cloudflare HTTPS an toàn kết nối toàn cầu:
-            currentServerUrl = "https://annie-army-myers-lighting.trycloudflare.com";
+            currentServerUrl = "https://prompt-your-industry-exercises.trycloudflare.com";
         }
         catch
         {
-            currentServerUrl = "https://annie-army-myers-lighting.trycloudflare.com";
+            currentServerUrl = "https://prompt-your-industry-exercises.trycloudflare.com";
         }
+    }
+
+    private void ApplyConfig(AppConfig cfg)
+    {
+        if (!string.IsNullOrWhiteSpace(cfg.ServerUrl))
+        {
+            string saved = cfg.ServerUrl.Trim();
+            if (!saved.Contains("10.10.0.225"))
+            {
+                currentServerUrl = saved;
+            }
+        }
+        enableNotification = cfg.EnableNotification;
+        showMessagePreview = cfg.ShowMessagePreview;
+        enableTaskbarFlash = cfg.EnableTaskbarFlash;
+        enableTaskbarBadge = cfg.EnableTaskbarBadge;
     }
 
     private void SaveConfig(string url)
@@ -165,7 +211,14 @@ public partial class Form1 : Form
         try
         {
             currentServerUrl = url.Trim();
-            var cfg = new AppConfig { ServerUrl = currentServerUrl };
+            var cfg = new AppConfig
+            {
+                ServerUrl = currentServerUrl,
+                EnableNotification = enableNotification,
+                ShowMessagePreview = showMessagePreview,
+                EnableTaskbarFlash = enableTaskbarFlash,
+                EnableTaskbarBadge = enableTaskbarBadge
+            };
             string json = JsonSerializer.Serialize(cfg, new JsonSerializerOptions { WriteIndented = true });
 
             // Lưu vào AppData để giữ thư mục file .exe luôn sạch đẹp chỉ duy nhất 1 file
@@ -189,6 +242,9 @@ public partial class Form1 : Form
             // Trích xuất các origin cần coi là an toàn (để bật Micro, Camera, WebRTC và SpeechRecognition trên HTTP)
             var secureOrigins = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
+                "http://10.10.0.225:3888",
+                "http://localhost:3888",
+                "http://127.0.0.1:3888",
                 "http://10.10.0.225:3000",
                 "http://localhost:3000",
                 "http://127.0.0.1:3000"
@@ -342,6 +398,42 @@ public partial class Form1 : Form
                             Console.WriteLine("Lỗi parse notification: " + ex.Message);
                         }
                     }
+                    else if (jsonMessage.Contains("UPDATE_UNREAD_COUNT") || (rawMessage != null && rawMessage.Contains("UPDATE_UNREAD_COUNT")))
+                    {
+                        try
+                        {
+                            string parseTarget = (!string.IsNullOrEmpty(rawMessage) && rawMessage.StartsWith("{")) ? rawMessage : jsonMessage;
+                            using var doc = JsonDocument.Parse(parseTarget);
+                            var root = doc.RootElement;
+                            int count = root.TryGetProperty("count", out var cProp) ? cProp.GetInt32() : 0;
+                            UpdateTaskbarBadge(count);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Lỗi UPDATE_UNREAD_COUNT: " + ex.Message);
+                        }
+                    }
+                    else if (jsonMessage.Contains("SYNC_NOTIFICATION_SETTINGS") || (rawMessage != null && rawMessage.Contains("SYNC_NOTIFICATION_SETTINGS")))
+                    {
+                        try
+                        {
+                            string parseTarget = (!string.IsNullOrEmpty(rawMessage) && rawMessage.StartsWith("{")) ? rawMessage : jsonMessage;
+                            using var doc = JsonDocument.Parse(parseTarget);
+                            var root = doc.RootElement;
+                            if (root.TryGetProperty("settings", out var sProp))
+                            {
+                                if (sProp.TryGetProperty("enabled", out var eProp)) enableNotification = eProp.GetBoolean();
+                                if (sProp.TryGetProperty("preview", out var pProp)) showMessagePreview = pProp.GetBoolean();
+                                if (sProp.TryGetProperty("taskbar", out var tProp)) enableTaskbarBadge = tProp.GetBoolean();
+                                if (sProp.TryGetProperty("flashTaskbar", out var fProp)) enableTaskbarFlash = fProp.GetBoolean();
+                                SaveConfig(currentServerUrl);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Lỗi SYNC_NOTIFICATION_SETTINGS: " + ex.Message);
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -385,6 +477,11 @@ public partial class Form1 : Form
         else if (e.KeyCode == Keys.F2)
         {
             ShowChangeServerDialog();
+            e.Handled = true;
+        }
+        else if (e.KeyCode == Keys.F3)
+        {
+            webView?.CoreWebView2?.ExecuteScriptAsync("document.getElementById('settingsBtn')?.click();");
             e.Handled = true;
         }
         else if (e.KeyCode == Keys.F11)
@@ -434,7 +531,7 @@ public partial class Form1 : Form
             Left = 20,
             Top = 20,
             Width = 400,
-            Text = "Nhập địa chỉ máy chủ Chat nội bộ:\n(Ví dụ: https://annie-army-myers-lighting.trycloudflare.com hoặc http://localhost:3000)"
+            Text = "Nhập địa chỉ máy chủ Chat nội bộ:\n(Ví dụ: https://xxxx.trycloudflare.com hoặc http://localhost:3888)"
         };
 
         var textBox = new TextBox
@@ -505,10 +602,199 @@ public partial class Form1 : Form
         });
     }
 
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern bool DestroyIcon(IntPtr handle);
+
+    [ComImport]
+    [Guid("ea1afb91-9e28-4b86-90e9-9e9f8a5eefaf")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface ITaskbarList3
+    {
+        [PreserveSig] void HrInit();
+        [PreserveSig] void AddTab(IntPtr hwnd);
+        [PreserveSig] void DeleteTab(IntPtr hwnd);
+        [PreserveSig] void ActivateTab(IntPtr hwnd);
+        [PreserveSig] void SetActiveAlt(IntPtr hwnd);
+        [PreserveSig] void MarkFullscreenWindow(IntPtr hwnd, [MarshalAs(UnmanagedType.Bool)] bool fFullscreen);
+        [PreserveSig] void SetProgressValue(IntPtr hwnd, ulong ullCompleted, ulong ullTotal);
+        [PreserveSig] void SetProgressState(IntPtr hwnd, int tbpFlags);
+        [PreserveSig] void RegisterTab(IntPtr hwnd, IntPtr hwndTab);
+        [PreserveSig] void UnregisterTab(IntPtr hwndTab);
+        [PreserveSig] void SetTabOrder(IntPtr hwnd, IntPtr hwndInsertBefore);
+        [PreserveSig] void SetTabActive(IntPtr hwnd, IntPtr hwndTab, uint dwReserved);
+        [PreserveSig] void ThumbBarAddButtons(IntPtr hwnd, uint cButtons, IntPtr pButtons);
+        [PreserveSig] void ThumbBarUpdateButtons(IntPtr hwnd, uint cButtons, IntPtr pButtons);
+        [PreserveSig] void ThumbBarSetImageList(IntPtr hwnd, IntPtr himl);
+        [PreserveSig] void SetOverlayIcon(IntPtr hwnd, IntPtr hIcon, [MarshalAs(UnmanagedType.LPWStr)] string? pszDescription);
+        [PreserveSig] void SetThumbnailTooltip(IntPtr hwnd, [MarshalAs(UnmanagedType.LPWStr)] string? pszTip);
+        [PreserveSig] void SetThumbnailClip(IntPtr hwnd, IntPtr prcClip);
+    }
+
+    [ComImport]
+    [Guid("56fdf344-fd6d-11d0-958a-006097c9a090")]
+    [ClassInterface(ClassInterfaceType.None)]
+    private class TaskbarInstance
+    {
+    }
+
+    private void InitTaskbar()
+    {
+        try
+        {
+            taskbarList = (ITaskbarList3)new TaskbarInstance();
+            taskbarList.HrInit();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("InitTaskbar: " + ex.Message);
+            taskbarList = null;
+        }
+    }
+
+    private Icon CreateBadgedAppIcon(int count)
+    {
+        int size = 48;
+        var bmp = new Bitmap(size, size, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(bmp))
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+            g.Clear(Color.Transparent);
+
+            // 1. Vẽ icon gốc EasyChat
+            if (baseAppIcon != null)
+            {
+                using var baseBmp = baseAppIcon.ToBitmap();
+                g.DrawImage(baseBmp, 0, 0, size, size);
+            }
+
+            // 2. Vẽ huy hiệu tròn đỏ ở góc trên bên phải (Top-Right như Zalo trong ảnh của bạn)
+            int badgeSize = 22;
+            int badgeX = size - badgeSize;
+            int badgeY = 0;
+            var badgeRect = new Rectangle(badgeX, badgeY, badgeSize, badgeSize);
+
+            using var redBrush = new SolidBrush(Color.FromArgb(235, 30, 30));
+            using var whitePen = new Pen(Color.White, 2f);
+            g.FillEllipse(redBrush, badgeRect);
+            g.DrawEllipse(whitePen, badgeRect);
+
+            // 3. Vẽ số lượng
+            string text = count > 99 ? "99+" : count.ToString();
+            float fontSize = text.Length > 2 ? 6.5f : (text.Length > 1 ? 8f : 9.5f);
+            using var font = new Font("Segoe UI", fontSize, FontStyle.Bold);
+            using var textBrush = new SolidBrush(Color.White);
+            using var sf = new StringFormat
+            {
+                Alignment = StringAlignment.Center,
+                LineAlignment = StringAlignment.Center
+            };
+            g.DrawString(text, font, textBrush, new RectangleF(badgeX, badgeY, badgeSize, badgeSize), sf);
+        }
+
+        IntPtr hIcon = bmp.GetHicon();
+        return Icon.FromHandle(hIcon);
+    }
+
+    private Icon CreateOverlayIcon(int count)
+    {
+        int size = 24;
+        var bmp = new Bitmap(size, size, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(bmp))
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+            g.Clear(Color.Transparent);
+
+            var rect = new Rectangle(1, 1, size - 2, size - 2);
+            using var redBrush = new SolidBrush(Color.FromArgb(235, 30, 30));
+            using var whitePen = new Pen(Color.White, 2f);
+            g.FillEllipse(redBrush, rect);
+            g.DrawEllipse(whitePen, rect);
+
+            string text = count > 99 ? "99+" : count.ToString();
+            float fontSize = text.Length > 2 ? 7f : (text.Length > 1 ? 8.5f : 10f);
+            using var font = new Font("Segoe UI", fontSize, FontStyle.Bold);
+            using var textBrush = new SolidBrush(Color.White);
+            using var sf = new StringFormat
+            {
+                Alignment = StringAlignment.Center,
+                LineAlignment = StringAlignment.Center
+            };
+            g.DrawString(text, font, textBrush, new RectangleF(0, 0, size, size), sf);
+        }
+
+        IntPtr hIcon = bmp.GetHicon();
+        return Icon.FromHandle(hIcon);
+    }
+
+    public void UpdateTaskbarBadge(int count)
+    {
+        this.BeginInvoke(() =>
+        {
+            try
+            {
+                if (!enableTaskbarBadge || count <= 0)
+                {
+                    if (taskbarList != null)
+                    {
+                        try { taskbarList.SetOverlayIcon(this.Handle, IntPtr.Zero, null); } catch {}
+                    }
+                    if (baseAppIcon != null)
+                    {
+                        this.Icon = baseAppIcon;
+                    }
+                    if (currentOverlayIconHandle != IntPtr.Zero)
+                    {
+                        DestroyIcon(currentOverlayIconHandle);
+                        currentOverlayIconHandle = IntPtr.Zero;
+                    }
+                    if (currentBadgedIcon != null)
+                    {
+                        try { DestroyIcon(currentBadgedIcon.Handle); currentBadgedIcon.Dispose(); } catch {}
+                        currentBadgedIcon = null;
+                    }
+                    return;
+                }
+
+                // 1. Cập nhật icon cửa sổ có huy hiệu đỏ góc trên bên phải (như Zalo)
+                var newBadged = CreateBadgedAppIcon(count);
+                this.Icon = newBadged;
+                if (currentBadgedIcon != null)
+                {
+                    try { DestroyIcon(currentBadgedIcon.Handle); currentBadgedIcon.Dispose(); } catch {}
+                }
+                currentBadgedIcon = newBadged;
+
+                // 2. Đồng thời áp dụng Windows native Taskbar overlay badge
+                if (taskbarList != null)
+                {
+                    if (currentOverlayIconHandle != IntPtr.Zero)
+                    {
+                        DestroyIcon(currentOverlayIconHandle);
+                        currentOverlayIconHandle = IntPtr.Zero;
+                    }
+                    var overlayIcon = CreateOverlayIcon(count);
+                    currentOverlayIconHandle = overlayIcon.Handle;
+                    try
+                    {
+                        taskbarList.SetOverlayIcon(this.Handle, currentOverlayIconHandle, $"{count} tin nhắn chưa đọc");
+                    }
+                    catch {}
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("UpdateTaskbarBadge error: " + ex.Message);
+            }
+        });
+    }
+
+    [DllImport("user32.dll")]
     private static extern bool FlashWindowEx(ref FLASHWINFO pwfi);
 
-    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [StructLayout(LayoutKind.Sequential)]
     private struct FLASHWINFO
     {
         public uint cbSize;
@@ -529,7 +815,7 @@ public partial class Form1 : Form
             if (Form.ActiveForm == this) return; // Đang ở trong app thì không cần nhấp nháy
 
             FLASHWINFO fInfo = new FLASHWINFO();
-            fInfo.cbSize = Convert.ToUInt32(System.Runtime.InteropServices.Marshal.SizeOf(fInfo));
+            fInfo.cbSize = Convert.ToUInt32(Marshal.SizeOf(fInfo));
             fInfo.hwnd = this.Handle;
             fInfo.dwFlags = FLASHW_TRAY | FLASHW_TIMERNOFG;
             fInfo.uCount = uint.MaxValue;
@@ -544,7 +830,7 @@ public partial class Form1 : Form
         try
         {
             FLASHWINFO fInfo = new FLASHWINFO();
-            fInfo.cbSize = Convert.ToUInt32(System.Runtime.InteropServices.Marshal.SizeOf(fInfo));
+            fInfo.cbSize = Convert.ToUInt32(Marshal.SizeOf(fInfo));
             fInfo.hwnd = this.Handle;
             fInfo.dwFlags = FLASHW_STOP;
             fInfo.uCount = 0;
@@ -607,14 +893,19 @@ public partial class Form1 : Form
         {
             try
             {
-                // 1. Nhấp nháy icon thanh Taskbar như Zalo
-                FlashTaskbar();
+                // 1. Nhấp nháy icon thanh Taskbar như Zalo (nếu được bật)
+                if (enableTaskbarFlash)
+                {
+                    FlashTaskbar();
+                }
 
-                // 2. Hiện popup thông báo ở góc dưới bên phải màn hình
-                if (notifyIcon != null)
+                // 2. Hiện popup thông báo ở góc dưới bên phải màn hình (nếu được bật)
+                if (notifyIcon != null && enableNotification)
                 {
                     string title = $"EasyChat • {senderName}";
-                    string snippet = string.IsNullOrWhiteSpace(messageText) ? "Đã gửi cho bạn một tin nhắn mới" : messageText;
+                    string snippet = showMessagePreview 
+                        ? (string.IsNullOrWhiteSpace(messageText) ? "Đã gửi cho bạn một tin nhắn mới" : messageText)
+                        : "Bạn có một tin nhắn mới";
                     if (snippet.Length > 120) snippet = snippet.Substring(0, 117) + "...";
                     notifyIcon.ShowBalloonTip(4000, title, snippet, ToolTipIcon.Info);
                 }

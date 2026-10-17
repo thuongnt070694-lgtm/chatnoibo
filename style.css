@@ -1186,14 +1186,18 @@ body.theme-dark .voice-progress-track {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-full);
   box-shadow: var(--shadow-sm);
-  z-index: 10;
+  z-index: 50;
   align-self: center;
   flex-shrink: 0;
   transition: opacity 0.15s ease;
 }
 
 .message-row:hover .msg-actions-toolbar,
-.message-row.active-picker .msg-actions-toolbar {
+.message-row.active-picker .msg-actions-toolbar,
+.message-row:has(.msg-reaction-picker.show) .msg-actions-toolbar,
+.message-row:has(.msg-reaction-picker.hover-open) .msg-actions-toolbar,
+.message-row:has(.reaction-btn-wrapper:hover) .msg-actions-toolbar,
+.msg-actions-toolbar:hover {
   display: flex;
 }
 
@@ -1221,6 +1225,9 @@ body.theme-dark .voice-progress-track {
 /* Khay chọn cảm xúc nổi (Reaction Picker Popup) */
 .reaction-btn-wrapper {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .msg-reaction-picker {
@@ -1232,12 +1239,24 @@ body.theme-dark .voice-progress-track {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-full);
-  padding: 4px 8px;
+  padding: 5px 8px;
   gap: 6px;
   box-shadow: var(--shadow-md);
-  z-index: 120;
+  z-index: 150;
   white-space: nowrap;
   animation: pickerPop 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Cầu nối vô hình chống rớt hover khi di chuyển chuột từ nút lên khay icon */
+.msg-reaction-picker::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: -20px;
+  right: -20px;
+  height: 18px;
+  background: transparent;
+  pointer-events: auto;
 }
 
 @keyframes pickerPop {
@@ -1246,23 +1265,26 @@ body.theme-dark .voice-progress-track {
 }
 
 .reaction-btn-wrapper:hover .msg-reaction-picker,
+.reaction-btn-wrapper.hover-open .msg-reaction-picker,
+.msg-reaction-picker.hover-open,
 .msg-reaction-picker.show {
-  display: flex;
+  display: flex !important;
   align-items: center;
 }
 
 .react-opt {
-  font-size: 19px;
+  font-size: 20px;
   cursor: pointer;
-  padding: 2px 3px;
+  padding: 3px 4px;
   border-radius: 50%;
-  transition: transform 0.15s ease;
+  transition: transform 0.15s ease, background 0.15s ease;
   user-select: none;
   line-height: 1;
 }
 
 .react-opt:hover {
   transform: scale(1.35) translateY(-2px);
+  background: var(--bg-hover);
 }
 
 /* Thanh hiển thị các reaction dưới bong bóng tin nhắn */

@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3888;
 const DB_FILE = path.join(__dirname, 'accounts_db.json');
 
 // Khởi tạo cơ sở dữ liệu tài khoản

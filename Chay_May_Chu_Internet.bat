@@ -7,19 +7,19 @@ echo ===========================================================================
 echo                EASYCHAT - KET NOI RA INTERNET QUA CLOUDFLARE
 echo ===============================================================================
 echo.
-echo [1/2] Dang kiem tra may chu Node.js (cong 3000)...
+echo [1/2] Dang kiem tra may chu Node.js EasyChat (cong 3888)...
 
-netstat -ano | findstr :3000 | findstr LISTENING >nul
+netstat -ano | findstr :3888 | findstr LISTENING >nul
 if %errorlevel% neq 0 (
-    echo [INFO] May chu Node.js chua bat. Dang tu dong khoi dong server.js...
+    echo [INFO] May chu Node.js chua bat. Dang tu dong khoi dong server.js tren cong 3888...
     start "EasyChat Server" cmd /k "node server.js"
     timeout /t 3 /nobreak >nul
 ) else (
-    echo [OK] May chu Node.js dang hoat dong tot tren cong 3000!
+    echo [OK] May chu Node.js EasyChat dang hoat dong tot tren cong 3888!
 )
 
 echo.
-echo [2/2] Dang tao duong ham HTTPS Internet an toan...
+echo [2/2] Dang tao duong ham HTTPS Internet an toan cho EasyChat...
 echo.
 echo -------------------------------------------------------------------------------
 echo HUONG DAN SU DUNG:
@@ -34,6 +34,6 @@ echo 3. GIU NGUYEN CUA SO NAY trong suot qua trinh chat. Khi tat cua so, duong h
 echo -------------------------------------------------------------------------------
 echo.
 
-cloudflared.exe tunnel --url http://localhost:3000
+cloudflared.exe tunnel --url http://localhost:3888
 
 pause

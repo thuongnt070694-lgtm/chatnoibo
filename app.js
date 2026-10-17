@@ -362,9 +362,38 @@ function updatePinChatMenuText() {
   }
 }
 
-// 1. Âm thanh chuông báo có tin nhắn mới nhẹ nhàng (Web Audio API)
+// 1. Quản lý Cài đặt Thông báo & Bảo mật Riêng tư (Lưu trữ LocalStorage & Đồng bộ C#)
+function getNotificationSettings() {
+  try {
+    const raw = localStorage.getItem("easychat_notif_settings");
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return {
+    enabled: true,
+    preview: true,
+    taskbar: true,
+    sound: true
+  };
+}
+
+function saveNotificationSettings(settings) {
+  try {
+    localStorage.setItem("easychat_notif_settings", JSON.stringify(settings));
+    if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
+      window.chrome.webview.postMessage(JSON.stringify({
+        type: "SYNC_NOTIFICATION_SETTINGS",
+        settings: settings
+      }));
+    }
+  } catch (e) {}
+}
+
+// 2. Âm thanh chuông báo có tin nhắn mới nhẹ nhàng (Web Audio API)
 function playNotificationChime() {
   try {
+    const settings = getNotificationSettings();
+    if (settings.sound === false) return; // Người dùng đã tắt âm thanh trong cài đặt
+
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
@@ -391,7 +420,7 @@ function playNotificationChime() {
   } catch (e) {}
 }
 
-// 2. Nhấp nháy tiêu đề Tab trình duyệt khi có tin nhắn chưa đọc
+// 3. Nhấp nháy tiêu đề Tab trình duyệt khi có tin nhắn chưa đọc
 let tabTitleInterval = null;
 const originalDocTitle = "EasyChat";
 
@@ -430,7 +459,7 @@ function clearTabTitleAlert() {
   }
 }
 
-// 3. Cập nhật huy hiệu đỏ tổng số tin chưa đọc trên nút Menu Trái
+// 4. Cập nhật huy hiệu đỏ tổng số tin chưa đọc trên nút Menu Trái & Taskbar icon như Zalo (Hình 2)
 function updateGlobalUnreadBadge() {
   const totalUnread = internalUsers.reduce((sum, u) => sum + (u.unreadCount || 0), 0);
   const badgeEl = document.getElementById("menuUnreadBadge");
@@ -442,9 +471,17 @@ function updateGlobalUnreadBadge() {
       badgeEl.style.display = "none";
     }
   }
+
+  // Gửi số lượng tin nhắn chưa đọc sang C# WinForms để cập nhật icon Taskbar như Zalo (Hình 2)
+  if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
+    window.chrome.webview.postMessage(JSON.stringify({
+      type: "UPDATE_UNREAD_COUNT",
+      count: totalUnread
+    }));
+  }
 }
 
-// 4. Thông báo màn hình Desktop Notification
+// 5. Thông báo màn hình Desktop Notification & Chế độ Riêng tư (Hình 1)
 function requestNotificationPermission() {
   try {
     if ("Notification" in window && Notification.permission === "default") {
@@ -455,20 +492,33 @@ function requestNotificationPermission() {
 
 function showDesktopNotification(senderName, text) {
   try {
-    // 1. Gửi tín hiệu sang EasyChat.exe (C# WinForms) để nhấp nháy Taskbar & hiện Popup góc phải
+    const settings = getNotificationSettings();
+    // A. Kiểm tra nếu người dùng đã TẮT thông báo
+    if (settings.enabled === false) return;
+
+    const displaySender = senderName || "Đồng nghiệp";
+    
+    // B. Kiểm tra CHẾ ĐỘ RIÊNG TƯ (Hình 1): Nếu tắt xem trước, che giấu hoàn toàn nội dung để người đứng sau không đọc được!
+    const displayText = (settings.preview !== false)
+      ? (text || "Đã gửi cho bạn một tin nhắn mới")
+      : "Bạn có một tin nhắn mới";
+
+    // 1. Gửi tín hiệu sang EasyChat.exe (C# WinForms)
     if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
       window.chrome.webview.postMessage(JSON.stringify({
         type: "NEW_MESSAGE_NOTIFICATION",
-        sender: senderName,
-        text: text || "Đã gửi cho bạn một tin nhắn mới"
+        sender: displaySender,
+        text: displayText,
+        flashTaskbar: settings.taskbar !== false
       }));
+      return; // Chạy trong Desktop app thì để C# quản lý popup hệ thống
     }
 
-    // 2. Thông báo trình duyệt Web (Chrome, Edge, Safari)
+    // 2. Thông báo trình duyệt Web (Chrome, Edge, Safari khi mở qua link web)
     if ("Notification" in window) {
       if (Notification.permission === "granted" && (document.visibilityState !== "visible" || !document.hasFocus())) {
-        const notif = new Notification(`EasyChat • ${senderName}`, {
-          body: text || "Đã gửi cho bạn một tin nhắn mới",
+        const notif = new Notification(`EasyChat • ${displaySender}`, {
+          body: displayText,
           icon: "/icon.png",
           tag: "easychat-msg-" + Date.now(),
           renotify: true
@@ -477,7 +527,7 @@ function showDesktopNotification(senderName, text) {
           window.focus();
           notif.close();
         };
-        setTimeout(() => { try { notif.close(); } catch (e) {} }, 5000);
+        setTimeout(() => { try { notif.close(); } catch (e) {} }, 4500);
       } else if (Notification.permission === "default") {
         Notification.requestPermission().catch(() => {});
       }
@@ -1314,11 +1364,11 @@ function renderMessages(user) {
         </div>
         <!-- Thanh nút thao tác khi rê chuột: Thả cảm xúc & Trả lời & Ghim & Đọc thoại -->
         <div class="msg-actions-toolbar">
-          <div class="reaction-btn-wrapper">
+          <div class="reaction-btn-wrapper" onmouseenter="handleReactionHoverEnter('${msg.id}')" onmouseleave="handleReactionHoverLeave('${msg.id}')">
             <button class="msg-action-btn" title="Thả biểu cảm" onclick="toggleReactionPicker(event, '${msg.id}')">
               <i class="fa-regular fa-face-smile"></i>
             </button>
-            <div class="msg-reaction-picker" id="reaction_picker_${msg.id}">
+            <div class="msg-reaction-picker" id="reaction_picker_${msg.id}" onmouseenter="handleReactionHoverEnter('${msg.id}')" onmouseleave="handleReactionHoverLeave('${msg.id}')">
               <span class="react-opt" onclick="reactToMessage(event, '${msg.id}', '👍')">👍</span>
               <span class="react-opt" onclick="reactToMessage(event, '${msg.id}', '❤️')">❤️</span>
               <span class="react-opt" onclick="reactToMessage(event, '${msg.id}', '😂')">😂</span>
@@ -1384,21 +1434,86 @@ function renderReactionsHtml(reactions, msgId) {
   return html;
 }
 
+let reactionHoverTimers = {};
+
+function handleReactionHoverEnter(msgId) {
+  if (reactionHoverTimers[msgId]) {
+    clearTimeout(reactionHoverTimers[msgId]);
+    delete reactionHoverTimers[msgId];
+  }
+  const picker = document.getElementById("reaction_picker_" + msgId);
+  if (picker) {
+    picker.classList.add("hover-open");
+    const wrapper = picker.closest(".reaction-btn-wrapper");
+    if (wrapper) wrapper.classList.add("hover-open");
+    const row = picker.closest(".message-row");
+    if (row) row.classList.add("active-picker");
+  }
+}
+
+function handleReactionHoverLeave(msgId) {
+  if (reactionHoverTimers[msgId]) {
+    clearTimeout(reactionHoverTimers[msgId]);
+  }
+  reactionHoverTimers[msgId] = setTimeout(() => {
+    const picker = document.getElementById("reaction_picker_" + msgId);
+    if (picker) {
+      picker.classList.remove("hover-open");
+      const wrapper = picker.closest(".reaction-btn-wrapper");
+      if (wrapper) wrapper.classList.remove("hover-open");
+      if (!picker.classList.contains("show")) {
+        const row = picker.closest(".message-row");
+        if (row) row.classList.remove("active-picker");
+      }
+    }
+    delete reactionHoverTimers[msgId];
+  }, 350);
+}
+
 function toggleReactionPicker(e, msgId) {
   if (e) e.stopPropagation();
+  if (reactionHoverTimers[msgId]) {
+    clearTimeout(reactionHoverTimers[msgId]);
+    delete reactionHoverTimers[msgId];
+  }
   document.querySelectorAll(".msg-reaction-picker.show").forEach(p => {
-    if (p.id !== "reaction_picker_" + msgId) p.classList.remove("show");
+    if (p.id !== "reaction_picker_" + msgId) {
+      p.classList.remove("show", "hover-open");
+      const wrapper = p.closest(".reaction-btn-wrapper");
+      if (wrapper) wrapper.classList.remove("hover-open");
+      p.closest(".message-row")?.classList.remove("active-picker");
+    }
   });
   const picker = document.getElementById("reaction_picker_" + msgId);
   if (picker) {
-    picker.classList.toggle("show");
+    const isShowing = picker.classList.toggle("show");
+    const wrapper = picker.closest(".reaction-btn-wrapper");
+    const row = picker.closest(".message-row");
+    if (isShowing) {
+      if (wrapper) wrapper.classList.add("hover-open");
+      if (row) row.classList.add("active-picker");
+    } else {
+      picker.classList.remove("hover-open");
+      if (wrapper) wrapper.classList.remove("hover-open");
+      if (row) row.classList.remove("active-picker");
+    }
   }
 }
 
 async function reactToMessage(e, msgId, emoji) {
   if (e) e.stopPropagation();
+  if (reactionHoverTimers[msgId]) {
+    clearTimeout(reactionHoverTimers[msgId]);
+    delete reactionHoverTimers[msgId];
+  }
   const picker = document.getElementById("reaction_picker_" + msgId);
-  if (picker) picker.classList.remove("show");
+  if (picker) {
+    picker.classList.remove("show", "hover-open");
+    const wrapper = picker.closest(".reaction-btn-wrapper");
+    if (wrapper) wrapper.classList.remove("hover-open");
+    const row = picker.closest(".message-row");
+    if (row) row.classList.remove("active-picker");
+  }
 
   if (!currentUser) return;
 
@@ -3478,6 +3593,26 @@ function setupAdminSettingsEvents() {
     if (nameInput) nameInput.value = currentUser.fullName;
     if (roleInput) roleInput.value = currentUser.dept || "";
     if (passInput) passInput.value = "";
+
+    // Nạp trạng thái Cài đặt Thông báo & Riêng tư (Hình 1 & Hình 2)
+    const notifSettings = getNotificationSettings();
+    const cbEnable = document.getElementById("settingNotifyEnable");
+    const cbPreview = document.getElementById("settingNotifyPreview");
+    const cbTaskbar = document.getElementById("settingNotifyTaskbar");
+    const cbSound = document.getElementById("settingNotifySound");
+    const rowPreview = document.getElementById("rowNotifyPreview");
+
+    if (cbEnable) {
+      cbEnable.checked = notifSettings.enabled !== false;
+      if (rowPreview) {
+        rowPreview.style.opacity = cbEnable.checked ? "1" : "0.5";
+        rowPreview.style.pointerEvents = cbEnable.checked ? "auto" : "none";
+      }
+    }
+    if (cbPreview) cbPreview.checked = notifSettings.preview !== false;
+    if (cbTaskbar) cbTaskbar.checked = notifSettings.taskbar !== false;
+    if (cbSound) cbSound.checked = notifSettings.sound !== false;
+
     if (modal) modal.style.display = "flex";
   }
 
@@ -3485,6 +3620,15 @@ function setupAdminSettingsEvents() {
     if (modal) modal.style.display = "none";
     tempNewAvatarData = null;
   }
+
+  // Tương tác thay đổi bật/tắt thông báo
+  document.getElementById("settingNotifyEnable")?.addEventListener("change", (e) => {
+    const rowPreview = document.getElementById("rowNotifyPreview");
+    if (rowPreview) {
+      rowPreview.style.opacity = e.target.checked ? "1" : "0.5";
+      rowPreview.style.pointerEvents = e.target.checked ? "auto" : "none";
+    }
+  });
 
   settingsBtn?.addEventListener("click", openSettings);
   myAvatarWrapper?.addEventListener("click", openSettings);
@@ -3542,9 +3686,19 @@ function setupAdminSettingsEvents() {
       currentUser.avatar = tempNewAvatarData;
     }
     localStorage.setItem("chatexcel_session_user_v2", JSON.stringify(currentUser));
+
+    // Lưu Cài đặt Thông báo & Bảo mật Riêng tư (Hình 1 & Hình 2)
+    const newNotifSettings = {
+      enabled: document.getElementById("settingNotifyEnable")?.checked ?? true,
+      preview: document.getElementById("settingNotifyPreview")?.checked ?? true,
+      taskbar: document.getElementById("settingNotifyTaskbar")?.checked ?? true,
+      sound: document.getElementById("settingNotifySound")?.checked ?? true
+    };
+    saveNotificationSettings(newNotifSettings);
+
     renderCurrentUserUI();
     closeSettings();
-    showToast("✅ Đã lưu ảnh đại diện và hồ sơ thành công!");
+    showToast("✅ Đã lưu cài đặt và hồ sơ thành công!");
 
     // 2. Gửi đồng bộ lên máy chủ Server
     try {
@@ -5265,7 +5419,12 @@ function setupEventListeners() {
         e.preventDefault();
         return;
       }
-      document.querySelectorAll(".msg-reaction-picker.show").forEach(p => p.classList.remove("show"));
+      document.querySelectorAll(".msg-reaction-picker.show, .msg-reaction-picker.hover-open").forEach(p => {
+        p.classList.remove("show", "hover-open");
+        const wrapper = p.closest(".reaction-btn-wrapper");
+        if (wrapper) wrapper.classList.remove("hover-open");
+        p.closest(".message-row")?.classList.remove("active-picker");
+      });
     }
   });
 
@@ -5275,7 +5434,12 @@ function setupEventListeners() {
   // Đóng bảng chọn cảm xúc khi bấm ra ngoài
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".reaction-btn-wrapper")) {
-      document.querySelectorAll(".msg-reaction-picker.show").forEach(p => p.classList.remove("show"));
+      document.querySelectorAll(".msg-reaction-picker.show, .msg-reaction-picker.hover-open").forEach(p => {
+        p.classList.remove("show", "hover-open");
+        const wrapper = p.closest(".reaction-btn-wrapper");
+        if (wrapper) wrapper.classList.remove("hover-open");
+        p.closest(".message-row")?.classList.remove("active-picker");
+      });
     }
   });
 

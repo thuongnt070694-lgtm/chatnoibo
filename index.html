@@ -13,7 +13,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <!-- Font Awesome CDN for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="style.css?v=6.4">
+  <link rel="stylesheet" href="style.css?v=7.1">
 </head>
 <body class="theme-light">
   <div class="chat-app-container">
@@ -537,6 +537,57 @@
           <label for="adminPasswordInput"><i class="fa-solid fa-key"></i> Đổi mật khẩu mới (Bỏ trống nếu không đổi):</label>
           <input type="password" id="adminPasswordInput" class="form-control" placeholder="Nhập mật khẩu mới...">
         </div>
+
+        <!-- CÀI ĐẶT THÔNG BÁO & BẢO MẬT RIÊNG TƯ -->
+        <div class="settings-notif-section" style="margin-top: 18px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+          <h4 style="font-size: 13.5px; font-weight: 700; color: var(--text-primary); margin: 0 0 14px 0; display: flex; align-items: center; gap: 8px;">
+            <i class="fa-solid fa-bell" style="color: var(--brand-primary);"></i> Cài đặt Thông báo & Bảo mật Riêng tư
+          </h4>
+
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <!-- 1. Bật/Tắt thông báo -->
+            <label style="display: flex; align-items: flex-start; justify-content: space-between; cursor: pointer; user-select: none;">
+              <div style="padding-right: 14px;">
+                <div style="font-weight: 600; font-size: 13px; color: var(--text-primary);">Bật thông báo tin nhắn mới</div>
+                <div style="font-size: 11.5px; color: var(--text-secondary); line-height: 1.4; margin-top: 2px;">Hiển thị thông báo màn hình khi có tin nhắn gửi đến</div>
+              </div>
+              <input type="checkbox" id="settingNotifyEnable" checked style="width: 20px; height: 20px; accent-color: var(--brand-primary); cursor: pointer; flex-shrink: 0; margin-top: 2px;">
+            </label>
+
+            <!-- 2. Xem trước nội dung tin nhắn (Bảo mật chống nhìn trộm) -->
+            <label id="rowNotifyPreview" style="display: flex; align-items: flex-start; justify-content: space-between; cursor: pointer; user-select: none; background: rgba(245, 158, 11, 0.08); padding: 10px 12px; border-radius: var(--radius-sm); border-left: 3px solid #f59e0b;">
+              <div style="padding-right: 14px;">
+                <div style="font-weight: 600; font-size: 13px; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                  <i class="fa-solid fa-shield-halved" style="color: #f59e0b;"></i> Xem trước nội dung tin nhắn
+                </div>
+                <div style="font-size: 11.5px; color: var(--text-secondary); line-height: 1.4; margin-top: 3px;">
+                  <strong>🔒 Bảo mật chống nhìn trộm:</strong> Khi tắt mục này, thông báo chỉ hiện <em>"Bạn có tin nhắn mới"</em> và <strong>ẩn hoàn toàn nội dung chat</strong>, giúp người đứng sau lưng không đọc được tin nhắn nội bộ!
+                </div>
+              </div>
+              <input type="checkbox" id="settingNotifyPreview" checked style="width: 20px; height: 20px; accent-color: var(--brand-primary); cursor: pointer; flex-shrink: 0; margin-top: 2px;">
+            </label>
+
+            <!-- 3. Huy hiệu đỏ số lượng tin chưa đọc trên Taskbar (như Zalo) -->
+            <label style="display: flex; align-items: flex-start; justify-content: space-between; cursor: pointer; user-select: none;">
+              <div style="padding-right: 14px;">
+                <div style="font-weight: 600; font-size: 13px; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                  <i class="fa-solid fa-circle" style="color: #ef4444; font-size: 10px;"></i> Huy hiệu đỏ đếm số tin chưa đọc trên Taskbar
+                </div>
+                <div style="font-size: 11.5px; color: var(--text-secondary); line-height: 1.4; margin-top: 2px;">Hiển thị chấm tròn đỏ kèm số lượng tin nhắn chưa đọc trên icon Taskbar như Zalo</div>
+              </div>
+              <input type="checkbox" id="settingNotifyTaskbar" checked style="width: 20px; height: 20px; accent-color: var(--brand-primary); cursor: pointer; flex-shrink: 0; margin-top: 2px;">
+            </label>
+
+            <!-- 4. Âm thanh chuông báo -->
+            <label style="display: flex; align-items: flex-start; justify-content: space-between; cursor: pointer; user-select: none;">
+              <div style="padding-right: 14px;">
+                <div style="font-weight: 600; font-size: 13px; color: var(--text-primary);">Âm thanh chuông báo</div>
+                <div style="font-size: 11.5px; color: var(--text-secondary); line-height: 1.4; margin-top: 2px;">Phát tiếng chuông ping khi có tin nhắn mới</div>
+              </div>
+              <input type="checkbox" id="settingNotifySound" checked style="width: 20px; height: 20px; accent-color: var(--brand-primary); cursor: pointer; flex-shrink: 0; margin-top: 2px;">
+            </label>
+          </div>
+        </div>
       </div>
       <div class="custom-modal-footer">
         <button class="btn-modal-secondary" id="btnCancelSettings">Hủy</button>
@@ -831,6 +882,6 @@
     <span id="toastMessage">Thông báo</span>
   </div>
 
-  <script src="app.js?v=7.0"></script>
+  <script src="app.js?v=7.1"></script>
 </body>
 </html>
