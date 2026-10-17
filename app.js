@@ -1206,11 +1206,6 @@ function renderMessages(user) {
           <button class="msg-action-btn ${msg.isPinned ? 'active-pin' : ''}" title="${msg.isPinned ? 'Bỏ ghim tin nhắn' : 'Ghim tin nhắn lên đầu'}" onclick="togglePinMessage('${msg.id}')">
             <i class="fa-solid fa-thumbtack"></i>
           </button>
-          ${(msg.text || msg.caption) ? `
-          <button class="msg-action-btn" title="Đọc tin nhắn bằng giọng nói (Text-to-Speech)" onclick="speakMessageText('${msg.id}')">
-            <i class="fa-solid fa-volume-high"></i>
-          </button>
-          ` : ''}
         </div>
       </div>
     `;
@@ -1567,50 +1562,6 @@ async function unpinMessage() {
   } catch (err) {
     console.error("Lỗi khi bỏ ghim tin nhắn:", err);
   }
-}
-
-// ==========================================
-// ĐỌC VĂN BẢN THÀNH GIỌNG NÓI (TEXT-TO-SPEECH)
-// ==========================================
-
-function speakMessageText(msgId) {
-  if (!('speechSynthesis' in window)) {
-    showToast("⚠️ Trình duyệt của bạn không hỗ trợ đọc văn bản bằng giọng nói.");
-    return;
-  }
-
-  const user = internalUsers.find(u => u.id === currentUserId);
-  if (!user || !user.messages) return;
-
-  const msg = user.messages.find(m => m.id === msgId);
-  if (!msg) return;
-
-  let textToRead = msg.text || msg.caption || "";
-  if (!textToRead) {
-    if (msg.fileName) textToRead = "Tệp đính kèm: " + msg.fileName;
-    else textToRead = "Tin nhắn không có văn bản.";
-  }
-
-  // Loại bỏ các URL và ký tự thừa để đọc tự nhiên
-  textToRead = textToRead.replace(/https?:\/\/[^\s]+/g, 'đường dẫn liên kết');
-
-  if (window.speechSynthesis.speaking) {
-    window.speechSynthesis.cancel();
-  }
-
-  const utterance = new SpeechSynthesisUtterance(textToRead);
-  utterance.lang = "vi-VN";
-  utterance.rate = 1.0;
-  utterance.pitch = 1.0;
-
-  const voices = window.speechSynthesis.getVoices();
-  const viVoice = voices.find(v => v.lang && (v.lang.includes("vi") || v.lang.includes("VI")));
-  if (viVoice) {
-    utterance.voice = viVoice;
-  }
-
-  showToast("🔊 Đang đọc tin nhắn bằng tiếng Việt...");
-  window.speechSynthesis.speak(utterance);
 }
 
 // ==========================================
