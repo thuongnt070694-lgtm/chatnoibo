@@ -4029,3 +4029,27 @@ body.theme-dark .chat-locked-banner {
     max-width: calc(100vw - 32px) !important;
   }
 }
+
+/* ==============================================
+   ICON GHIM VÀ GIAO DIỆN HỘI THOẠI ĐƯỢC GHIM
+   ============================================== */
+.user-card-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 5px;
+  color: #f37021;
+  font-size: 11px;
+  vertical-align: middle;
+}
+.user-item-card.is-pinned {
+  background: rgba(243, 112, 33, 0.05);
+  border-left: 3px solid #f37021;
+}
+.user-item-card.is-pinned:hover {
+  background: rgba(243, 112, 33, 0.09);
+}
+.theme-dark .user-item-card.is-pinned {
+  background: rgba(243, 112, 33, 0.12);
+  border-left: 3px solid #f37021;
+}

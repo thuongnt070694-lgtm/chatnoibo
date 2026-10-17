@@ -288,10 +288,78 @@ function getMessageTimestamp(msg) {
     if (!isNaN(t)) return t;
   }
   if (msg.id && typeof msg.id === 'string') {
-    const match = msg.id.match(/^msg_(\d+)/);
+    const match = msg.id.match(/(?:msg|sys)_(\d+)/);
     if (match) return parseInt(match[1], 10);
+    const digits = msg.id.match(/(\d{10,})/);
+    if (digits) return parseInt(digits[1], 10);
+  }
+  if (msg.time && typeof msg.time === 'string') {
+    const parts = msg.time.split(':');
+    if (parts.length >= 2) {
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (!isNaN(h) && !isNaN(m)) {
+        const d = new Date();
+        d.setHours(h, m, 0, 0);
+        return d.getTime();
+      }
+    }
   }
   return 0;
+}
+
+// Lấy thời điểm gửi của tin nhắn gần nhất trong cuộc hội thoại
+function getLastMessageTimestamp(u) {
+  if (!u || !Array.isArray(u.messages) || u.messages.length === 0) return 0;
+  for (let i = u.messages.length - 1; i >= 0; i--) {
+    const t = getMessageTimestamp(u.messages[i]);
+    if (t > 0) return t;
+  }
+  return 0;
+}
+
+// Quản lý danh sách hội thoại được ghim lên đầu (lưu localStorage)
+function getPinnedConversations() {
+  try {
+    const saved = localStorage.getItem("chatexcel_pinned_convs");
+    return saved ? JSON.parse(saved) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function isConversationPinned(convId) {
+  if (!convId) return false;
+  return getPinnedConversations().includes(convId);
+}
+
+function togglePinConversation(convId) {
+  if (!convId) return;
+  let pinnedList = getPinnedConversations();
+  const isPinned = pinnedList.includes(convId);
+  const user = internalUsers.find(u => u.id === convId);
+  const name = user ? user.name : "Cuộc trò chuyện";
+
+  if (isPinned) {
+    pinnedList = pinnedList.filter(id => id !== convId);
+    showToast(`📌 Đã bỏ ghim "${name}"`);
+  } else {
+    pinnedList.push(convId);
+    showToast(`📌 Đã ghim "${name}" lên đầu danh sách!`);
+  }
+  localStorage.setItem("chatexcel_pinned_convs", JSON.stringify(pinnedList));
+  renderUserList();
+  updatePinChatMenuText();
+}
+
+function updatePinChatMenuText() {
+  const pinEl = document.querySelector("#optPinChat span");
+  if (!pinEl) return;
+  if (currentUserId && isConversationPinned(currentUserId)) {
+    pinEl.innerText = "Bỏ ghim cuộc trò chuyện này";
+  } else {
+    pinEl.innerText = "Ghim cuộc trò chuyện này lên đầu";
+  }
 }
 
 // 1. Âm thanh chuông báo có tin nhắn mới nhẹ nhàng (Web Audio API)
@@ -857,6 +925,26 @@ function renderUserList() {
     return;
   }
 
+  // SẮP XẾP HỘI THOẠI (CHUẨN ZALO / MESSENGER):
+  // 1. Cuộc trò chuyện được ghim ưu tiên trên cùng
+  // 2. Ai có tin nhắn mới nhất (hoặc vừa chat tới) sẽ TỰ ĐỘNG NHẢY LÊN ĐẦU
+  // 3. Nếu chưa có tin nhắn: ưu tiên người online, rồi sắp xếp theo tên A-Z
+  filteredUsers.sort((a, b) => {
+    const pinA = isConversationPinned(a.id) ? 1 : 0;
+    const pinB = isConversationPinned(b.id) ? 1 : 0;
+    if (pinA !== pinB) return pinB - pinA;
+
+    const timeA = getLastMessageTimestamp(a);
+    const timeB = getLastMessageTimestamp(b);
+    if (timeA !== timeB) return timeB - timeA;
+
+    const onlineA = (a.status === 'online') ? 1 : 0;
+    const onlineB = (b.status === 'online') ? 1 : 0;
+    if (onlineA !== onlineB) return onlineB - onlineA;
+
+    return (a.name || '').localeCompare((b.name || ''), 'vi');
+  });
+
   const newHtml = filteredUsers.map(user => {
     const lastMsg = user.messages[user.messages.length - 1];
     let lastMsgText = user.isGroup ? "Nhóm chat chung" : "Sẵn sàng nhắn tin & gọi";
@@ -881,9 +969,11 @@ function renderUserList() {
     const unreadBadgeText = (user.unreadCount > 99) ? "99+" : user.unreadCount;
     const unreadBadge = hasUnread ? `<span class="user-card-badge">${unreadBadgeText}</span>` : "";
     const unreadDot = hasUnread ? `<span class="avatar-unread-dot"></span>` : "";
+    const isPinned = isConversationPinned(user.id);
+    const pinBadge = isPinned ? `<span class="user-card-pin" title="Đã ghim lên đầu"><i class="fa-solid fa-thumbtack"></i></span>` : "";
 
     return `
-      <div class="user-item-card ${isActive} ${unreadClass}" onclick="selectUser('${user.id}')" data-id="${user.id}">
+      <div class="user-item-card ${isActive} ${unreadClass} ${isPinned ? 'is-pinned' : ''}" onclick="selectUser('${user.id}')" data-id="${user.id}">
         <div class="user-card-avatar">
           <img src="${user.avatar}" alt="${user.name}" class="avatar-img">
           <span class="status-indicator status-${user.status}"></span>
@@ -891,7 +981,7 @@ function renderUserList() {
         </div>
         <div class="user-card-info">
           <div class="user-card-top">
-            <span class="user-card-name">${escapeHtml(user.name)}</span>
+            <span class="user-card-name">${pinBadge}${escapeHtml(user.name)}</span>
             <span class="user-card-time ${hasUnread ? 'unread-time' : ''}">${lastMsgTime}</span>
           </div>
           <div class="user-card-sub">
@@ -1003,6 +1093,7 @@ function selectUser(userId) {
   renderMessages(user);
   renderRightPanelDetails(user);
   renderUserList();
+  updatePinChatMenuText();
 
   if (user.isGroup) {
     renderGroupMembers();
@@ -5269,15 +5360,9 @@ function setupEventListeners() {
     }
   });
 
-  // Ghim cuộc trò chuyện
+  // Ghim hoặc bỏ ghim cuộc trò chuyện
   document.getElementById("optPinChat")?.addEventListener("click", () => {
     if (!currentUserId) return;
-    const idx = internalUsers.findIndex(u => u.id === currentUserId);
-    if (idx > -1) {
-      const item = internalUsers.splice(idx, 1)[0];
-      internalUsers.unshift(item);
-      renderUserList();
-      showToast(`📌 Đã ghim "${item.name}" lên đầu danh sách!`);
-    }
+    togglePinConversation(currentUserId);
   });
 }
