@@ -1975,9 +1975,289 @@
     "text": "a test trên máy a thì ko sao",
     "time": "17:20",
     "status": "sent",
+    "reactions": {
+      "😂": [
+        {
+          "username": "olaidie",
+          "fullName": "Kay"
+        }
+      ]
+    },
+    "targetId": "u_olaidie",
+    "targetUsername": "olaidie",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792232688572",
+    "sender": "me",
+    "senderName": "Kay",
+    "senderUsername": "olaidie",
+    "type": "text",
+    "text": "móa",
+    "time": "17:24",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792232694205",
+    "sender": "me",
+    "senderName": "Kay",
+    "senderUsername": "olaidie",
+    "type": "text",
+    "text": "ảo thía",
+    "time": "17:24",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792232713165",
+    "sender": "me",
+    "senderName": "Kay",
+    "senderUsername": "olaidie",
+    "type": "text",
+    "text": "A nhìn thẻ div nó update lên tục k",
+    "time": "17:25",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792232957341",
+    "sender": "me",
+    "senderName": "Kay",
+    "senderUsername": "olaidie",
+    "type": "text",
+    "text": "Timing ác",
+    "time": "17:29",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792232974112",
+    "sender": "me",
+    "senderName": "Kay",
+    "senderUsername": "olaidie",
+    "type": "text",
+    "text": "hayha",
+    "time": "17:29",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792232978750",
+    "sender": "me",
+    "senderName": "Kay",
+    "senderUsername": "olaidie",
+    "type": "text",
+    "text": "chán đời ghê chưa",
+    "time": "17:29",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792232999988",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "a đang để 1.5s",
+    "time": "17:29",
+    "status": "sent",
     "reactions": {},
     "targetId": "u_olaidie",
     "targetUsername": "olaidie",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792233010404",
+    "sender": "me",
+    "senderName": "Kay",
+    "senderUsername": "olaidie",
+    "type": "text",
+    "text": "A thử k cho nó load lại tin nhắn liên tục, mà khi có tin nhắn mới để vào",
+    "time": "17:30",
+    "status": "sent",
+    "reactions": {
+      "😮": [
+        {
+          "username": "thuongnt",
+          "fullName": "Em Bé Bí"
+        }
+      ]
+    },
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792233013739",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "là h jko cho auto load hả",
+    "time": "17:30",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_olaidie",
+    "targetUsername": "olaidie",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792233023460",
+    "sender": "me",
+    "senderName": "Kay",
+    "senderUsername": "olaidie",
+    "type": "text",
+    "text": "Đúng r a ạ",
+    "time": "17:30",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792233027068",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "mà đợi nào có tn mới load hả",
+    "time": "17:30",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_olaidie",
+    "targetUsername": "olaidie",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792233041428",
+    "sender": "me",
+    "senderName": "Kay",
+    "senderUsername": "olaidie",
+    "type": "text",
+    "text": "A chỉ ghi nhận tin nhắn r đẩy tin nhắn mới thôi",
+    "time": "17:30",
+    "status": "sent",
+    "reactions": {
+      "😂": [
+        {
+          "username": "thuongnt",
+          "fullName": "Em Bé Bí"
+        }
+      ]
+    },
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792233052067",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "ok, để test lại thử",
+    "time": "17:30",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_olaidie",
+    "targetUsername": "olaidie",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792233061451",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "mà thôi",
+    "time": "17:31",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_olaidie",
+    "targetUsername": "olaidie",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792233065236",
+    "sender": "me",
+    "senderName": "Kay",
+    "senderUsername": "olaidie",
+    "type": "text",
+    "text": "Còn icon a fix theo từng tin, nhưng ghi nhận trong db là có icon đó, k cần load lại",
+    "time": "17:31",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792233064434",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "t2 làm h về",
+    "time": "17:31",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_olaidie",
+    "targetUsername": "olaidie",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792233106739",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "là phần nào á",
+    "time": "17:31",
+    "status": "sent",
+    "replyTo": {
+      "id": "msg_1792233065236",
+      "senderName": "Kay",
+      "senderUsername": "olaidie",
+      "text": "Còn icon a fix theo từng tin, nhưng ghi nhận trong db là có icon đó, k cần load lại",
+      "type": "text"
+    },
+    "reactions": {},
+    "targetId": "u_olaidie",
+    "targetUsername": "olaidie",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792233107853",
+    "sender": "me",
+    "senderName": "Kay",
+    "senderUsername": "olaidie",
+    "type": "text",
+    "text": "Ghi nhận trong db r chỉ dùng để logout hoặc chuyển tin nhắn chắc mới load lại đọc từ db thôi",
+    "time": "17:31",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
     "isGroup": false
   }
 ]
