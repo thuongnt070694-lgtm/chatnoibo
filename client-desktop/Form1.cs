@@ -44,6 +44,26 @@ public partial class Form1 : Form
         this.KeyPreview = true;
         this.KeyDown += Form1_KeyDown;
 
+        // Cài đặt icon cam "Easy" phong cách Zalo cho cửa sổ và thanh Taskbar
+        try
+        {
+            var stream = typeof(Form1).Assembly.GetManifestResourceStream("ChatDesktop.app.ico");
+            if (stream != null)
+            {
+                this.Icon = new Icon(stream);
+            }
+            else
+            {
+                var exePath = Environment.ProcessPath ?? Application.ExecutablePath;
+                if (!string.IsNullOrEmpty(exePath))
+                {
+                    var icon = Icon.ExtractAssociatedIcon(exePath);
+                    if (icon != null) this.Icon = icon;
+                }
+            }
+        }
+        catch {}
+
         // Thanh menu tiện ích phía trên (rất gọn gàng)
         var menuStrip = new MenuStrip();
         var menuHeThong = new ToolStripMenuItem("Hệ thống");
