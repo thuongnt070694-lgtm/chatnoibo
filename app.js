@@ -551,7 +551,8 @@ function hydrateMessagesIntoConversations(msgs) {
       time: m.time || '',
       status: m.status || 'seen',
       replyTo: m.replyTo || null,
-      reactions: (m.reactions && typeof m.reactions === 'object') ? m.reactions : {}
+      reactions: (m.reactions && typeof m.reactions === 'object') ? m.reactions : {},
+      isPinned: !!m.isPinned
     };
 
     targetConv.messages.push(formattedMsg);
@@ -1013,7 +1014,7 @@ function selectUser(userId) {
     const msgInput = document.getElementById("messageInput");
     if (msgInput) {
       msgInput.disabled = false;
-      msgInput.placeholder = "Nhập tin nhắn nội bộ... (Nhấn Enter để gửi, Shift+Enter xuống dòng)";
+      msgInput.placeholder = "Nhập văn bản...";
     }
   }
 
@@ -1048,7 +1049,9 @@ function renderMiddleChatHeader(user) {
     statusText.style.color = user.status === "online" ? "var(--status-online)" : "var(--text-muted)";
   }
 
-  if (pinnedBanner) pinnedBanner.style.display = "none";
+  if (pinnedBanner) {
+    updatePinnedBannerDOM(user);
+  }
 }
 
 function renderMessages(user) {
@@ -1061,7 +1064,7 @@ function renderMessages(user) {
         <div class="empty-icon-box">
           <i class="fa-regular fa-comment-dots"></i>
         </div>
-        <h3 class="empty-title">Cuộc trò chuyện trắng</h3>
+        <h3 class="empty-title">Cuộc trò chuyện trống</h3>
         <p class="empty-desc">Chưa có tin nhắn nào với <strong>${escapeHtml(user.name)}</strong>.</p>
         <div class="empty-hint">
           <span><i class="fa-solid fa-keyboard"></i> Gõ tin nhắn bên dưới và nhấn Enter hoặc dùng tính năng Gọi bên trên</span>
@@ -1172,6 +1175,7 @@ function renderMessages(user) {
         <div class="msg-bubble-wrap">
           ${senderHeader}
           <div class="msg-bubble">
+            ${msg.isPinned ? '<div class="pinned-badge"><i class="fa-solid fa-thumbtack"></i> Đã ghim</div>' : ''}
             ${replyQuoteHtml}
             ${contentHtml}
             <div class="msg-meta">
@@ -1181,7 +1185,7 @@ function renderMessages(user) {
           </div>
           ${reactionsHtml}
         </div>
-        <!-- Thanh nút thao tác khi rê chuột: Thả cảm xúc & Trả lời -->
+        <!-- Thanh nút thao tác khi rê chuột: Thả cảm xúc & Trả lời & Ghim & Đọc thoại -->
         <div class="msg-actions-toolbar">
           <div class="reaction-btn-wrapper">
             <button class="msg-action-btn" title="Thả biểu cảm" onclick="toggleReactionPicker(event, '${msg.id}')">
@@ -1199,6 +1203,14 @@ function renderMessages(user) {
           <button class="msg-action-btn" title="Trả lời tin nhắn này" onclick="startReplyMessage('${msg.id}')">
             <i class="fa-solid fa-reply"></i>
           </button>
+          <button class="msg-action-btn ${msg.isPinned ? 'active-pin' : ''}" title="${msg.isPinned ? 'Bỏ ghim tin nhắn' : 'Ghim tin nhắn lên đầu'}" onclick="togglePinMessage('${msg.id}')">
+            <i class="fa-solid fa-thumbtack"></i>
+          </button>
+          ${(msg.text || msg.caption) ? `
+          <button class="msg-action-btn" title="Đọc tin nhắn bằng giọng nói (Text-to-Speech)" onclick="speakMessageText('${msg.id}')">
+            <i class="fa-solid fa-volume-high"></i>
+          </button>
+          ` : ''}
         </div>
       </div>
     `;
@@ -1443,6 +1455,286 @@ function jumpToMessage(msgId) {
 }
 
 // ==========================================
+// TÍNH NĂNG GHIM TIN NHẮN (PIN MESSAGE)
+// ==========================================
+
+function updatePinnedBannerDOM(user) {
+  const banner = document.getElementById("pinnedBanner");
+  const senderEl = document.getElementById("pinnedSender");
+  const textEl = document.getElementById("pinnedText");
+  const bannerContent = document.getElementById("pinnedBannerContent");
+  if (!banner || !senderEl || !textEl) return;
+
+  if (!user || !user.messages || user.messages.length === 0) {
+    banner.style.display = "none";
+    if (bannerContent) bannerContent.removeAttribute("data-msg-id");
+    return;
+  }
+
+  const pinnedMsg = user.messages.find(m => m.isPinned);
+  if (!pinnedMsg) {
+    banner.style.display = "none";
+    if (bannerContent) bannerContent.removeAttribute("data-msg-id");
+    return;
+  }
+
+  banner.style.display = "flex";
+  senderEl.innerText = (pinnedMsg.senderName || pinnedMsg.senderUsername || "Tin nhắn") + ": ";
+
+  let snippet = pinnedMsg.text || "";
+  if (!snippet) {
+    if (pinnedMsg.type === "image") snippet = "📷 [Hình ảnh] " + (pinnedMsg.caption || "");
+    else if (pinnedMsg.type === "file") snippet = "📎 [Tệp tin] " + (pinnedMsg.fileName || "");
+    else if (pinnedMsg.type === "voice" || pinnedMsg.type === "audio") snippet = "🎤 [Tin nhắn thoại]";
+  }
+  textEl.innerText = snippet || "Tin nhắn quan trọng";
+
+  if (bannerContent) {
+    bannerContent.setAttribute("data-msg-id", pinnedMsg.id);
+  }
+}
+
+async function togglePinMessage(msgId) {
+  if (!currentUserId || !currentUser) return;
+  const user = internalUsers.find(u => u.id === currentUserId);
+  if (!user || !user.messages) return;
+
+  const targetMsg = user.messages.find(m => m.id === msgId);
+  if (!targetMsg) return;
+
+  const willBePinned = !targetMsg.isPinned;
+
+  // Cập nhật trạng thái tức thì trên client
+  user.messages.forEach(m => {
+    if (m.id === msgId) {
+      m.isPinned = willBePinned;
+    } else if (willBePinned) {
+      m.isPinned = false; // Mỗi cuộc trò chuyện chỉ ghim 1 tin nhắn tại 1 thời điểm
+    }
+  });
+
+  updatePinnedBannerDOM(user);
+  renderMessages(user);
+  showToast(willBePinned ? "📌 Đã ghim tin nhắn lên đầu cuộc trò chuyện!" : "Đã bỏ ghim tin nhắn.");
+
+  try {
+    const res = await fetch("/api/message/pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messageId: msgId,
+        isGroup: !!user.isGroup,
+        targetUsername: user.username || (currentUserId ? currentUserId.replace(/^u_/, '') : ''),
+        requester: currentUser.username
+      })
+    });
+    if (!res.ok) {
+      console.warn("Máy chủ báo lỗi khi ghim tin nhắn");
+    }
+  } catch (err) {
+    console.error("Lỗi gửi yêu cầu ghim tin nhắn:", err);
+  }
+}
+
+async function unpinMessage() {
+  if (!currentUserId || !currentUser) return;
+  const user = internalUsers.find(u => u.id === currentUserId);
+  if (!user || !user.messages) return;
+
+  const pinnedMsg = user.messages.find(m => m.isPinned);
+  if (!pinnedMsg) {
+    updatePinnedBannerDOM(user);
+    return;
+  }
+
+  const prevMsgId = pinnedMsg.id;
+  pinnedMsg.isPinned = false;
+  updatePinnedBannerDOM(user);
+  renderMessages(user);
+  showToast("Đã bỏ ghim tin nhắn.");
+
+  try {
+    await fetch("/api/message/pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messageId: prevMsgId,
+        isGroup: !!user.isGroup,
+        targetUsername: user.username || (currentUserId ? currentUserId.replace(/^u_/, '') : ''),
+        requester: currentUser.username
+      })
+    });
+  } catch (err) {
+    console.error("Lỗi khi bỏ ghim tin nhắn:", err);
+  }
+}
+
+// ==========================================
+// ĐỌC VĂN BẢN THÀNH GIỌNG NÓI (TEXT-TO-SPEECH)
+// ==========================================
+
+function speakMessageText(msgId) {
+  if (!('speechSynthesis' in window)) {
+    showToast("⚠️ Trình duyệt của bạn không hỗ trợ đọc văn bản bằng giọng nói.");
+    return;
+  }
+
+  const user = internalUsers.find(u => u.id === currentUserId);
+  if (!user || !user.messages) return;
+
+  const msg = user.messages.find(m => m.id === msgId);
+  if (!msg) return;
+
+  let textToRead = msg.text || msg.caption || "";
+  if (!textToRead) {
+    if (msg.fileName) textToRead = "Tệp đính kèm: " + msg.fileName;
+    else textToRead = "Tin nhắn không có văn bản.";
+  }
+
+  // Loại bỏ các URL và ký tự thừa để đọc tự nhiên
+  textToRead = textToRead.replace(/https?:\/\/[^\s]+/g, 'đường dẫn liên kết');
+
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+  }
+
+  const utterance = new SpeechSynthesisUtterance(textToRead);
+  utterance.lang = "vi-VN";
+  utterance.rate = 1.0;
+  utterance.pitch = 1.0;
+
+  const voices = window.speechSynthesis.getVoices();
+  const viVoice = voices.find(v => v.lang && (v.lang.includes("vi") || v.lang.includes("VI")));
+  if (viVoice) {
+    utterance.voice = viVoice;
+  }
+
+  showToast("🔊 Đang đọc tin nhắn bằng tiếng Việt...");
+  window.speechSynthesis.speak(utterance);
+}
+
+// ==========================================
+// SOẠN TIN BẰNG GIỌNG NÓI (SPEECH-TO-TEXT / VOICE DICTATION)
+// ==========================================
+
+let voiceDictationInstance = null;
+let isDictating = false;
+let dictationBaseText = "";
+
+function toggleVoiceDictation() {
+  if (isDictating) {
+    stopVoiceDictation();
+  } else {
+    startVoiceDictation();
+  }
+}
+
+function startVoiceDictation() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    showToast("⚠️ Trình duyệt của bạn chưa hỗ trợ nhận diện giọng nói tiếng Việt (hãy dùng Chrome hoặc Edge).");
+    return;
+  }
+
+  const msgInput = document.getElementById("messageInput");
+  const dictationBar = document.getElementById("voiceDictationBar");
+  const btnDictation = document.getElementById("btnVoiceDictation");
+  const statusText = document.getElementById("dictationStatusText");
+
+  try {
+    voiceDictationInstance = new SpeechRecognition();
+    voiceDictationInstance.lang = 'vi-VN';
+    voiceDictationInstance.continuous = true;
+    voiceDictationInstance.interimResults = true;
+
+    dictationBaseText = msgInput ? msgInput.value : "";
+    if (dictationBaseText && !dictationBaseText.endsWith(" ")) {
+      dictationBaseText += " ";
+    }
+
+    voiceDictationInstance.onstart = () => {
+      isDictating = true;
+      if (dictationBar) dictationBar.style.display = "flex";
+      if (btnDictation) btnDictation.classList.add("active-listening");
+      if (statusText) statusText.innerText = "Đang lắng nghe tiếng Việt... Hãy nói nội dung tin nhắn";
+    };
+
+    voiceDictationInstance.onresult = (event) => {
+      let interimTranscript = "";
+      let finalTranscript = "";
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const item = event.results[i];
+        if (item.isFinal) {
+          finalTranscript += item[0].transcript;
+        } else {
+          interimTranscript += item[0].transcript;
+        }
+      }
+
+      if (msgInput) {
+        if (finalTranscript) {
+          dictationBaseText += finalTranscript.trim() + " ";
+          msgInput.value = dictationBaseText;
+        } else if (interimTranscript) {
+          msgInput.value = dictationBaseText + interimTranscript;
+        }
+        autoResizeTextarea(msgInput);
+      }
+    };
+
+    voiceDictationInstance.onerror = (event) => {
+      console.warn("Lỗi nhận diện giọng nói:", event.error);
+      if (event.error === 'not-allowed') {
+        showToast("⚠️ Vui lòng cấp quyền Micro trên trình duyệt để soạn tin bằng giọng nói!");
+        stopVoiceDictation();
+      } else if (event.error !== 'no-speech') {
+        stopVoiceDictation();
+      }
+    };
+
+    voiceDictationInstance.onend = () => {
+      if (isDictating) {
+        try {
+          voiceDictationInstance.start();
+        } catch (e) {
+          stopVoiceDictation();
+        }
+      } else {
+        stopVoiceDictation();
+      }
+    };
+
+    voiceDictationInstance.start();
+  } catch (err) {
+    console.error("Không thể khởi động SpeechRecognition:", err);
+    showToast("⚠️ Không thể khởi động nhận diện giọng nói: " + err.message);
+    stopVoiceDictation();
+  }
+}
+
+function stopVoiceDictation() {
+  isDictating = false;
+  if (voiceDictationInstance) {
+    try {
+      voiceDictationInstance.stop();
+    } catch (e) {}
+    voiceDictationInstance = null;
+  }
+
+  const dictationBar = document.getElementById("voiceDictationBar");
+  const btnDictation = document.getElementById("btnVoiceDictation");
+  if (dictationBar) dictationBar.style.display = "none";
+  if (btnDictation) btnDictation.classList.remove("active-listening");
+
+  const msgInput = document.getElementById("messageInput");
+  if (msgInput) {
+    msgInput.focus();
+    autoResizeTextarea(msgInput);
+  }
+}
+
+// ==========================================
 // 7. CỘT PHẢI: CHI TIẾT TỆP & ẢNH
 // ==========================================
 function renderRightPanelDetails(user) {
@@ -1512,7 +1804,7 @@ function renderRightPanelDetails(user) {
     const msgInput = document.getElementById("messageInput");
     if (msgInput) {
       msgInput.disabled = false;
-      msgInput.placeholder = "Nhập tin nhắn nội bộ... (Nhấn Enter để gửi, Shift+Enter xuống dòng)";
+      msgInput.placeholder = "Nhập văn bản...";
     }
   }
 
@@ -2340,7 +2632,7 @@ function checkGroupChatLockStatus() {
     if (inputBar) inputBar.classList.remove("is-locked");
     if (msgInput) {
       msgInput.disabled = false;
-      msgInput.placeholder = "Nhập tin nhắn nội bộ... (Nhấn Enter để gửi, Shift+Enter xuống dòng)";
+      msgInput.placeholder = "Nhập văn bản...";
     }
     return;
   }
@@ -2376,7 +2668,7 @@ function checkGroupChatLockStatus() {
     if (inputBar) inputBar.classList.remove("is-locked");
     if (msgInput) {
       msgInput.disabled = false;
-      msgInput.placeholder = "Nhập tin nhắn nội bộ... (Nhấn Enter để gửi, Shift+Enter xuống dòng)";
+      msgInput.placeholder = "Nhập văn bản...";
     }
   }
 }
@@ -4105,6 +4397,51 @@ function initRealtimeSSE() {
           }
         }
 
+        // 1.06 Sự kiện Ghim hoặc Bỏ ghim tin nhắn (Message Pin)
+        if (type === "message_pin" && data) {
+          const { pinnedMessageId, isGroup, targetUsername, requester } = data;
+
+          for (const u of internalUsers) {
+            let matchesConv = false;
+            if (isGroup && u.isGroup) {
+              matchesConv = true;
+            } else if (!isGroup && !u.isGroup) {
+              const myU = (currentUser?.username || '').toLowerCase().trim();
+              const reqU = (requester || '').toLowerCase().trim();
+              const tgtU = (targetUsername || '').toLowerCase().trim();
+              const partnerU = (u.username || '').toLowerCase().trim();
+              if ((partnerU === tgtU && myU === reqU) || (partnerU === reqU && myU === tgtU)) {
+                matchesConv = true;
+              }
+            }
+            if (matchesConv && u.messages) {
+              u.messages.forEach(m => {
+                m.isPinned = Boolean(pinnedMessageId && m.id === pinnedMessageId);
+              });
+            }
+          }
+
+          const activeUser = internalUsers.find(u => u.id === currentUserId);
+          if (activeUser) {
+            let isCurrent = false;
+            if (isGroup && activeUser.isGroup) isCurrent = true;
+            else if (!isGroup && !activeUser.isGroup) {
+              const myU = (currentUser?.username || '').toLowerCase().trim();
+              const reqU = (requester || '').toLowerCase().trim();
+              const tgtU = (targetUsername || '').toLowerCase().trim();
+              const partnerU = (activeUser.username || '').toLowerCase().trim();
+              if ((partnerU === tgtU && myU === reqU) || (partnerU === reqU && myU === tgtU)) {
+                isCurrent = true;
+              }
+            }
+            if (isCurrent) {
+              updatePinnedBannerDOM(activeUser);
+              renderMessages(activeUser);
+            }
+          }
+          return;
+        }
+
         // 1.1 Sự kiện xóa tin nhắn
         if (type === "messages_cleared" && data) {
           if (data.isGroup) {
@@ -4521,6 +4858,23 @@ function setupEventListeners() {
   document.getElementById("btnVoiceMsg")?.addEventListener("click", startVoiceRecording);
   document.getElementById("btnCancelVoiceRecording")?.addEventListener("click", cancelVoiceRecording);
   document.getElementById("btnSendVoiceRecording")?.addEventListener("click", sendVoiceRecording);
+
+  // Nhận diện giọng nói thành văn bản (Voice Dictation / Speech-to-Text)
+  document.getElementById("btnVoiceDictation")?.addEventListener("click", toggleVoiceDictation);
+  document.getElementById("btnStopDictation")?.addEventListener("click", stopVoiceDictation);
+
+  // Thanh thông báo ghim tin nhắn (Pinned Message Banner)
+  document.getElementById("pinnedBannerContent")?.addEventListener("click", () => {
+    const bannerContent = document.getElementById("pinnedBannerContent");
+    const msgId = bannerContent?.getAttribute("data-msg-id");
+    if (msgId) {
+      jumpToMessage(msgId);
+    }
+  });
+  document.getElementById("btnClosePin")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    unpinMessage();
+  });
 
   const fileInput = document.getElementById("fileInput");
   document.getElementById("btnAttachFile")?.addEventListener("click", () => {

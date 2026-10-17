@@ -13,5 +13,6 @@
     "dienne"
   ],
   "mutedUsers": [],
-  "onlyAdminsCanChat": false
+  "onlyAdminsCanChat": false,
+  "pinnedMessage": null
 }

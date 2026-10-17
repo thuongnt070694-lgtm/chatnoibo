@@ -753,34 +753,98 @@ body.theme-dark .user-item-card.has-unread {
 
 /* Ghim tin nhắn (Pinned Banner) */
 .pinned-message-bar {
-  background-color: var(--primary-light);
-  border-bottom: 1px solid rgba(37, 99, 235, 0.15);
+  background-color: #fffbeb;
+  border-bottom: 1px solid #fef3c7;
   padding: 8px 16px;
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--text-primary);
   flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+  z-index: 5;
 }
+
+body.theme-dark .pinned-message-bar {
+  background-color: #1e1b13;
+  border-bottom: 1px solid #362f1c;
+  color: #fef3c7;
+}
+
 .pin-icon {
-  color: var(--primary-color);
+  color: #d97706;
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
+
 .pin-content {
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
+  min-width: 0;
 }
+
+.pin-content:hover {
+  text-decoration: underline;
+}
+
+.pin-content strong {
+  color: #b45309;
+}
+
+body.theme-dark .pin-content strong {
+  color: #fbbf24;
+}
+
 .btn-close-pin {
   background: none;
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 4px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
 }
-.btn-close-pin:hover { color: var(--text-primary); }
+
+.btn-close-pin:hover {
+  color: var(--danger-color);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.pinned-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  margin-bottom: 4px;
+  border: 1px solid rgba(217, 119, 6, 0.25);
+  width: fit-content;
+}
+
+body.theme-dark .pinned-badge {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.msg-action-btn.active-pin {
+  color: #d97706 !important;
+  background: rgba(217, 119, 6, 0.12) !important;
+}
 
 /* Vùng hiển thị tin nhắn (Chat Messages Area) */
 .chat-messages-area {
@@ -1538,6 +1602,90 @@ body.theme-dark .msg-reply-quote {
 .btn-voice-send:hover {
   background-color: var(--primary-hover);
   transform: translateY(-1px);
+}
+
+/* ==========================================
+   SOẠN TIN BẰNG GIỌNG NÓI (VOICE DICTATION / SPEECH-TO-TEXT)
+   ========================================== */
+.voice-dictation-bar {
+  padding: 8px 16px;
+  background: linear-gradient(90deg, rgba(37, 99, 235, 0.08) 0%, rgba(59, 130, 246, 0.04) 100%);
+  border-top: 1px solid rgba(37, 99, 235, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  animation: fadeIn 0.2s ease;
+  z-index: 5;
+}
+
+body.theme-dark .voice-dictation-bar {
+  background: linear-gradient(90deg, rgba(30, 58, 138, 0.25) 0%, rgba(30, 41, 59, 0.5) 100%);
+  border-top: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.dictation-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.dictation-pulse-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #2563eb;
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.8);
+  animation: pulseMic 1.2s infinite ease-in-out;
+  flex-shrink: 0;
+}
+
+@keyframes pulseMic {
+  0%, 100% { transform: scale(0.9); opacity: 0.6; }
+  50% { transform: scale(1.3); opacity: 1; }
+}
+
+.dictation-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: #2563eb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.theme-dark .dictation-text {
+  color: #60a5fa;
+}
+
+.btn-stop-dictation {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  background-color: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-full, 9999px);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-stop-dictation:hover {
+  background-color: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.btn-icon.active-listening {
+  color: #2563eb !important;
+  background-color: rgba(37, 99, 235, 0.15) !important;
+  animation: pulseMic 1.4s infinite ease-in-out;
 }
 
 /* ==========================================
@@ -3812,32 +3960,41 @@ body.theme-dark .chat-locked-banner {
 
   /* Khung nhập tin nhắn đáy màn hình hỗ trợ thanh điều hướng Home của iPhone */
   .chat-input-bar {
-    padding: 8px 10px;
-    padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
-    gap: 6px;
-    min-height: calc(58px + env(safe-area-inset-bottom, 0px));
+    padding: 6px 8px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom, 6px));
+    gap: 4px;
+    min-height: calc(52px + env(safe-area-inset-bottom, 0px));
     height: auto;
     flex-shrink: 0;
     z-index: 20;
     box-sizing: border-box;
+    align-items: flex-end;
+  }
+  .chat-input-bar .message-input-wrapper {
+    padding: 6px 12px;
+    min-height: 38px;
+    border-radius: 20px;
   }
   .chat-input-bar .btn-icon {
-    width: 36px;
-    height: 36px;
-    font-size: 15px;
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
     flex-shrink: 0;
   }
   .chat-input-bar textarea,
   #messageInput {
     font-size: 16px !important; /* Bắt buộc >= 16px để iOS Safari / Chrome không tự động zoom làm lệch trang */
-    padding: 9px 12px;
+    padding: 2px 0;
+    line-height: 1.35;
+    height: 22px;
   }
   .btn-send {
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
-    font-size: 15px;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    font-size: 14px;
     flex-shrink: 0;
+    border-radius: 50%;
   }
 
   /* Alert cuộc gọi đến trên mobile */

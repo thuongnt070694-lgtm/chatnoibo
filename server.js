@@ -142,6 +142,7 @@ function getEnrichedGroupInfo() {
     members: groupInfo.members,
     mutedUsers: groupInfo.mutedUsers,
     onlyAdminsCanChat: !!groupInfo.onlyAdminsCanChat,
+    pinnedMessage: groupInfo.pinnedMessage || null,
     memberDetails: memberDetails
   };
 }
@@ -1057,6 +1058,93 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ status: 'ok', reactions: targetMsg.reactions }));
     } catch (err) {
       console.error("Lỗi react tin nhắn:", err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Lỗi máy chủ' }));
+    }
+    return;
+  }
+
+  // 6.1.3 GHIM HOẶC BỎ GHIM TIN NHẮN (PIN / UNPIN MESSAGE)
+  if (pathname === '/api/message/pin' && req.method === 'POST') {
+    try {
+      const { messageId, isGroup, targetUsername, requester } = await parseJsonBody(req);
+      if (!requester) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Thiếu thông tin người yêu cầu' }));
+        return;
+      }
+
+      const reqUser = (requester || '').toLowerCase().trim();
+      const targetUser = (targetUsername || '').toLowerCase().trim();
+
+      const targetMsg = messageId ? messagesHistory.find(m => m.id === messageId) : null;
+      let isNowPinned = false;
+
+      messagesHistory.forEach(m => {
+        let inThisConv = false;
+        if (isGroup && m.isGroup) {
+          inThisConv = true;
+        } else if (!isGroup && !m.isGroup) {
+          const s = (m.senderUsername || '').toLowerCase().trim();
+          const t = (m.targetUsername || (m.targetId ? m.targetId.replace(/^u_/, '') : '') || '').toLowerCase().trim();
+          const isBetween = (s === reqUser && t === targetUser) || (s === targetUser && t === reqUser);
+          if (isBetween) inThisConv = true;
+        }
+
+        if (inThisConv) {
+          if (targetMsg && m.id === targetMsg.id) {
+            m.isPinned = !m.isPinned;
+            isNowPinned = !!m.isPinned;
+          } else {
+            m.isPinned = false;
+          }
+        }
+      });
+
+      if (isGroup) {
+        groupInfo.pinnedMessage = isNowPinned && targetMsg ? {
+          id: targetMsg.id,
+          senderName: targetMsg.senderName || targetMsg.senderUsername,
+          text: targetMsg.text || targetMsg.caption || targetMsg.fileName || "Tin nhắn",
+          time: targetMsg.time || "",
+          type: targetMsg.type || "text",
+          pinnedBy: reqUser
+        } : null;
+        saveGroupInfo();
+      }
+
+      saveMessages();
+
+      const pinPayload = {
+        pinnedMessageId: isNowPinned && targetMsg ? targetMsg.id : null,
+        pinnedMessage: isNowPinned && targetMsg ? targetMsg : null,
+        isGroup: !!isGroup,
+        targetUsername: targetUser,
+        requester: reqUser
+      };
+
+      if (isGroup) {
+        const groupMemberSet = new Set((groupInfo.members || []).map(m => (m || '').toLowerCase().trim()));
+        const payloadStr = `data: ${JSON.stringify({ type: 'message_pin', data: pinPayload })}\n\n`;
+        clients.forEach(c => {
+          if (c.username && groupMemberSet.has((c.username || '').toLowerCase().trim())) {
+            try { c.res.write(payloadStr); } catch (err) {}
+          }
+        });
+      } else {
+        const payloadStr = `data: ${JSON.stringify({ type: 'message_pin', data: pinPayload })}\n\n`;
+        clients.forEach(c => {
+          const u = (c.username || '').toLowerCase().trim();
+          if (u === reqUser || u === targetUser) {
+            try { c.res.write(payloadStr); } catch (err) {}
+          }
+        });
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', isPinned: isNowPinned, pinnedMessageId: isNowPinned && targetMsg ? targetMsg.id : null }));
+    } catch (err) {
+      console.error("Lỗi ghim tin nhắn:", err);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Lỗi máy chủ' }));
     }

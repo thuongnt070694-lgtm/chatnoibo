@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <!-- Font Awesome CDN for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="style.css?v=6.2">
+  <link rel="stylesheet" href="style.css?v=6.3">
 </head>
 <body class="theme-light">
   <div class="chat-app-container">
@@ -144,12 +144,12 @@
       </header>
 
       <!-- Thanh thông báo ghim (Pinned Banner) -->
-      <div class="pinned-message-bar" id="pinnedBanner">
+      <div class="pinned-message-bar" id="pinnedBanner" style="display: none;">
         <div class="pin-icon"><i class="fa-solid fa-thumbtack"></i></div>
-        <div class="pin-content">
-          <strong>Thông báo ghim:</strong> <span id="pinnedText">Tài liệu dự án ChatExcel Q4/2026 đã được cập nhật ở mục Tệp tin. Vui lòng kiểm tra và duyệt trước 17h.</span>
+        <div class="pin-content" id="pinnedBannerContent" style="cursor: pointer;" title="Nhấp để chuyển tới tin nhắn đã ghim">
+          <strong id="pinnedSender">Đã ghim:</strong> <span id="pinnedText">Nội dung tin nhắn...</span>
         </div>
-        <button class="btn-close-pin" id="btnClosePin" title="Bỏ ghim"><i class="fa-solid fa-xmark"></i></button>
+        <button class="btn-close-pin" id="btnClosePin" title="Bỏ ghim tin nhắn"><i class="fa-solid fa-xmark"></i></button>
       </div>
 
       <!-- Khung hiển thị nội dung tin nhắn -->
@@ -211,6 +211,18 @@
         <span class="upload-progress-percent" id="uploadProgressPercent">0%</span>
       </div>
 
+      <!-- Thanh trạng thái đang lắng nghe nhận diện giọng nói (Voice Dictation / Speech-to-Text) -->
+      <div class="voice-dictation-bar" id="voiceDictationBar" style="display: none;">
+        <div class="dictation-left">
+          <span class="dictation-pulse-dot"></span>
+          <i class="fa-solid fa-microphone-lines text-primary"></i>
+          <span class="dictation-text" id="dictationStatusText">Đang lắng nghe giọng nói... Hãy nói nội dung tin nhắn</span>
+        </div>
+        <button class="btn-stop-dictation" id="btnStopDictation" title="Dừng nhận diện">
+          <i class="fa-solid fa-check"></i> Xong
+        </button>
+      </div>
+
       <!-- Khung nhập và gửi tin nhắn -->
       <footer class="chat-input-bar" id="chatInputBar">
         <!-- Thanh ghi âm tin nhắn thoại trực tiếp -->
@@ -268,11 +280,14 @@
         </div>
 
         <div class="message-input-wrapper" id="messageInputWrapper">
-          <textarea id="messageInput" placeholder="Nhập tin nhắn nội bộ... (Nhấn Enter để gửi, Shift+Enter xuống dòng)" rows="1"></textarea>
+          <textarea id="messageInput" placeholder="Nhập văn bản..." rows="1"></textarea>
         </div>
 
         <div class="input-actions-right" id="inputActionsRight">
-          <button class="btn-icon" id="btnVoiceMsg" title="Ghi âm thoại">
+          <button class="btn-icon" id="btnVoiceDictation" title="Soạn tin bằng giọng nói (Nói để tự động gõ chữ)">
+            <i class="fa-solid fa-microphone-lines"></i>
+          </button>
+          <button class="btn-icon" id="btnVoiceMsg" title="Gửi tin nhắn thoại (Voice Memo)">
             <i class="fa-solid fa-microphone"></i>
           </button>
           <button class="btn-send" id="btnSendMessage" title="Gửi tin nhắn">
@@ -813,6 +828,6 @@
     <span id="toastMessage">Thông báo</span>
   </div>
 
-  <script src="app.js?v=6.2"></script>
+  <script src="app.js?v=6.3"></script>
 </body>
 </html>
