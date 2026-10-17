@@ -43,6 +43,367 @@
     "reactions": {},
     "targetId": "u_thuongnt",
     "targetUsername": "thuongnt",
+    "isGroup": false,
+    "isPinned": false
+  },
+  {
+    "id": "msg_1792211110645",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "haha",
+    "time": "11:25",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_pexinhh03",
+    "targetUsername": "pexinhh03",
+    "isGroup": false,
+    "isPinned": false
+  },
+  {
+    "id": "msg_1792211115396",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "uy tín chưa",
+    "time": "11:25",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_pexinhh03",
+    "targetUsername": "pexinhh03",
+    "isGroup": false,
+    "isPinned": false
+  },
+  {
+    "id": "msg_1792211133797",
+    "sender": "me",
+    "senderName": "Nguyễn Thị Bé",
+    "senderUsername": "pexinhh03",
+    "type": "image",
+    "imageUrl": "/uploads/1792211133116_ijd7v_screenshot-2023-01-31-122925-16751429974101528726262.webp",
+    "caption": "screenshot-2023-01-31-122925-16751429974101528726262.webp",
+    "time": "11:25",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false,
+    "isPinned": false
+  },
+  {
+    "id": "msg_1792211156877",
+    "sender": "me",
+    "senderName": "Nguyễn Thị Bé",
+    "senderUsername": "pexinhh03",
+    "type": "image",
+    "imageUrl": "/uploads/1792211156215_xgn9i_Screenshot_20261017_112555.png",
+    "caption": "Screenshot_20261017_112555.png",
+    "time": "11:25",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false,
+    "isPinned": false
+  },
+  {
+    "id": "msg_1792211161819",
+    "sender": "me",
+    "senderName": "Nguyễn Thị Bé",
+    "senderUsername": "pexinhh03",
+    "type": "text",
+    "text": "okee",
+    "time": "11:26",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false,
+    "isPinned": false
+  },
+  {
+    "id": "msg_1792211172704",
+    "sender": "me",
+    "senderName": "Nguyễn Thị Bé",
+    "senderUsername": "pexinhh03",
+    "type": "text",
+    "text": "mà sóp rim xài free thôi a",
+    "time": "11:26",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false,
+    "isPinned": false
+  },
+  {
+    "id": "msg_1792211173420",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "nếu dùng bản web thì có thể nói đc ko cần bấm",
+    "time": "11:26",
+    "status": "sent",
+    "reactions": {
+      "😂": [
+        {
+          "username": "pexinhh03",
+          "fullName": "Nguyễn Thị Bé"
+        }
+      ]
+    },
+    "targetId": "u_pexinhh03",
+    "targetUsername": "pexinhh03",
+    "isGroup": false,
+    "isPinned": false
+  },
+  {
+    "id": "msg_1792211176070",
+    "sender": "me",
+    "senderName": "Nguyễn Thị Bé",
+    "senderUsername": "pexinhh03",
+    "type": "text",
+    "text": "chứ k mua bán",
+    "time": "11:26",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false,
+    "isPinned": false
+  },
+  {
+    "id": "msg_1792211189364",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "lên lương cũng đc",
+    "time": "11:26",
+    "status": "sent",
+    "replyTo": {
+      "id": "msg_1792211176070",
+      "senderName": "Nguyễn Thị Bé",
+      "senderUsername": "pexinhh03",
+      "text": "chứ k mua bán",
+      "type": "text"
+    },
+    "reactions": {
+      "😂": [
+        {
+          "username": "pexinhh03",
+          "fullName": "Nguyễn Thị Bé"
+        }
+      ]
+    },
+    "targetId": "u_pexinhh03",
+    "targetUsername": "pexinhh03",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792211202191",
+    "sender": "me",
+    "senderName": "Nguyễn Thị Bé",
+    "senderUsername": "pexinhh03",
+    "type": "text",
+    "text": "lên thêm 200k nha a",
+    "time": "11:26",
+    "status": "sent",
+    "replyTo": {
+      "id": "msg_1792211189364",
+      "senderName": "Em Bé Bí",
+      "senderUsername": "thuongnt",
+      "text": "lên lương cũng đc",
+      "type": "text"
+    },
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792211213252",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "thế thôi, dùng phòng này nội bộ",
+    "time": "11:26",
+    "status": "sent",
+    "reactions": {
+      "😂": [
+        {
+          "username": "pexinhh03",
+          "fullName": "Nguyễn Thị Bé"
+        }
+      ]
+    },
+    "targetId": "u_pexinhh03",
+    "targetUsername": "pexinhh03",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792211363635",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "alo",
+    "time": "11:29",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_olaidie",
+    "targetUsername": "olaidie",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792211546513",
+    "sender": "me",
+    "senderName": "Kay",
+    "senderUsername": "olaidie",
+    "type": "text",
+    "text": "You and you",
+    "time": "11:32",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792211612748",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "đúng rồi á",
+    "time": "11:33",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_olaidie",
+    "targetUsername": "olaidie",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792211622499",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "logo nào",
+    "time": "11:33",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_olaidie",
+    "targetUsername": "olaidie",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792211681210",
+    "sender": "me",
+    "senderName": "Kay",
+    "senderUsername": "olaidie",
+    "type": "text",
+    "text": "Xong r e xóa app đây :v",
+    "time": "11:34",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792211705778",
+    "sender": "me",
+    "senderName": "Kay",
+    "senderUsername": "olaidie",
+    "type": "text",
+    "text": "K nói gì là đồng ý đúng k a?",
+    "time": "11:35",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792211754286",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "haha",
+    "time": "11:35",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_olaidie",
+    "targetUsername": "olaidie",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792211757586",
+    "sender": "me",
+    "senderName": "Kay",
+    "senderUsername": "olaidie",
+    "type": "text",
+    "text": "E đợi đến 12h k phản hồi gì là ok nhé",
+    "time": "11:35",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792211760970",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "phải test nhiều cho uy tín chứ",
+    "time": "11:36",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_olaidie",
+    "targetUsername": "olaidie",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792211767089",
+    "sender": "me",
+    "senderName": "Kay",
+    "senderUsername": "olaidie",
+    "type": "text",
+    "text": "E đợi đến 12h k phản hồi gì là đồng ý xóa nhé",
+    "time": "11:36",
+    "status": "sent",
+    "reactions": {
+      "😮": [
+        {
+          "username": "thuongnt",
+          "fullName": "Em Bé Bí"
+        }
+      ]
+    },
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792211781204",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "text",
+    "text": "ko nên sống vội",
+    "time": "11:36",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_olaidie",
+    "targetUsername": "olaidie",
     "isGroup": false
   }
 ]

@@ -68,5 +68,15 @@
     "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=pexinhh03",
     "role": "Thành viên nội bộ",
     "createdAt": "2026-10-17T04:22:51.551Z"
+  },
+  {
+    "id": "acc_1792211259199",
+    "username": "olaidie",
+    "password": "B0ykillerq1!",
+    "fullName": "Kay",
+    "dept": "x",
+    "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=olaidie",
+    "role": "Thành viên nội bộ",
+    "createdAt": "2026-10-17T04:27:39.199Z"
   }
 ]

@@ -11,7 +11,7 @@ namespace ChatDesktop;
 
 public class AppConfig
 {
-    public string ServerUrl { get; set; } = "http://10.10.0.225:3000";
+    public string ServerUrl { get; set; } = "https://annie-army-myers-lighting.trycloudflare.com";
 }
 
 public partial class Form1 : Form
@@ -23,7 +23,7 @@ public partial class Form1 : Form
         "config.json"
     );
     private readonly string localConfigFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json");
-    private string currentServerUrl = "http://10.10.0.225:3000";
+    private string currentServerUrl = "https://annie-army-myers-lighting.trycloudflare.com";
     private bool isFullscreen = false;
     private FormWindowState prevWindowState = FormWindowState.Normal;
 
@@ -109,18 +109,22 @@ public partial class Form1 : Form
                 var cfg = JsonSerializer.Deserialize<AppConfig>(json);
                 if (cfg != null && !string.IsNullOrWhiteSpace(cfg.ServerUrl))
                 {
-                    currentServerUrl = cfg.ServerUrl.Trim();
-                    return;
+                    string saved = cfg.ServerUrl.Trim();
+                    // Nếu là IP LAN cũ 10.10.0.225 (không kết nối được ngoài Internet), tự chuyển sang Cloudflare
+                    if (!saved.Contains("10.10.0.225"))
+                    {
+                        currentServerUrl = saved;
+                        return;
+                    }
                 }
             }
 
-            // 3. Mặc định dùng thẳng địa chỉ máy chủ đã nhúng sẵn trong code:
-            // "http://10.10.0.225:3000" mà không cần bất kỳ file phụ nào!
-            currentServerUrl = "http://10.10.0.225:3000";
+            // 3. Mặc định dùng thẳng địa chỉ Cloudflare HTTPS an toàn kết nối toàn cầu:
+            currentServerUrl = "https://annie-army-myers-lighting.trycloudflare.com";
         }
         catch
         {
-            currentServerUrl = "http://10.10.0.225:3000";
+            currentServerUrl = "https://annie-army-myers-lighting.trycloudflare.com";
         }
     }
 
@@ -379,7 +383,7 @@ public partial class Form1 : Form
             Left = 20,
             Top = 20,
             Width = 400,
-            Text = "Nhập địa chỉ IP hoặc tên miền của máy chủ Chat nội bộ:\n(Ví dụ: http://10.10.0.225:3000 hoặc http://localhost:3000)"
+            Text = "Nhập địa chỉ máy chủ Chat nội bộ:\n(Ví dụ: https://annie-army-myers-lighting.trycloudflare.com hoặc http://localhost:3000)"
         };
 
         var textBox = new TextBox
