@@ -226,6 +226,53 @@ public partial class Form1 : Form
                 }
             };
 
+            // Xử lý khi mất kết nối hoặc không tới được máy chủ (do khác mạng LAN / ngoài văn phòng)
+            webView.CoreWebView2.NavigationCompleted += (s, e) =>
+            {
+                if (!e.IsSuccess && e.WebErrorStatus != CoreWebView2WebErrorStatus.OperationCanceled)
+                {
+                    string errorHtml = $@"
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset='utf-8'>
+                        <title>Không thể kết nối máy chủ</title>
+                        <style>
+                            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0f172a; color: #f8fafc; text-align: center; }}
+                            .card {{ background: #1e293b; padding: 40px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); max-width: 520px; border: 1px solid #334155; }}
+                            .icon {{ font-size: 48px; margin-bottom: 12px; }}
+                            h2 {{ color: #f87171; margin-top: 0; font-size: 22px; }}
+                            p {{ color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 14px 0; }}
+                            .url-badge {{ background: #0f172a; padding: 8px 14px; border-radius: 8px; font-family: monospace; color: #38bdf8; font-size: 13px; word-break: break-all; display: inline-block; border: 1px solid #334155; }}
+                            .reasons {{ text-align: left; background: #0f172a; padding: 14px 18px; border-radius: 8px; margin: 16px 0; font-size: 13px; color: #cbd5e1; border-left: 3px solid #f59e0b; }}
+                            .btn {{ display: inline-block; padding: 10px 20px; margin: 8px 6px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; }}
+                            .btn-primary {{ background: #2563eb; color: #fff; }}
+                            .btn-secondary {{ background: #334155; color: #f8fafc; }}
+                            .btn:hover {{ opacity: 0.9; }}
+                        </style>
+                    </head>
+                    <body>
+                        <div class='card'>
+                            <div class='icon'>📡</div>
+                            <h2>Không thể kết nối tới Máy chủ</h2>
+                            <p>Ứng dụng không thể kết nối tới địa chỉ:</p>
+                            <div class='url-badge'>{currentServerUrl}</div>
+                            <div class='reasons'>
+                                <strong>⚠️ Nguyên nhân chính:</strong><br>
+                                1. Bạn đang ở <strong>văn phòng khác</strong> hoặc <strong>mạng Wi-Fi khác</strong> ngoài mạng LAN văn phòng chính (IP 10.10.x.x chỉ dùng nội bộ).<br>
+                                2. Máy tính chạy máy chủ chưa khởi động hoặc bị chặn tường lửa (Firewall).
+                            </div>
+                            <div>
+                                <button class='btn btn-primary' onclick='window.chrome.webview.postMessage(""CHANGE_SERVER"")'>⚙️ Đổi địa chỉ máy chủ (F2)</button>
+                                <button class='btn btn-secondary' onclick='location.reload()'>🔄 Thử lại (F5)</button>
+                            </div>
+                        </div>
+                    </body>
+                    </html>";
+                    webView.CoreWebView2.NavigateToString(errorHtml);
+                }
+            };
+
             // Lắng nghe sự kiện từ giao diện Web (ví dụ: kích hoạt bộ gõ giọng nói Windows)
             webView.CoreWebView2.WebMessageReceived += (s, e) =>
             {
@@ -235,6 +282,10 @@ public partial class Form1 : Form
                     if (message == "TRIGGER_VOICE_TYPING")
                     {
                         TriggerVoiceTyping();
+                    }
+                    else if (message == "CHANGE_SERVER")
+                    {
+                        this.BeginInvoke(() => ShowChangeServerDialog());
                     }
                 }
                 catch (Exception ex)

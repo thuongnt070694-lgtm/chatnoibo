@@ -12,5 +12,37 @@
     "targetId": "u_thuongnt",
     "targetUsername": "thuongnt",
     "isGroup": false
+  },
+  {
+    "id": "msg_1792208700029",
+    "sender": "me",
+    "senderName": "Em Bé Bí",
+    "senderUsername": "thuongnt",
+    "type": "voice",
+    "audioUrl": "/uploads/1792208700025_8j27i_voice_1792208700022.webm",
+    "duration": 5,
+    "durationText": "0:05",
+    "fileName": "voice_1792208700022.webm",
+    "fileSize": "88.2 KB",
+    "time": "10:45",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_duyen",
+    "targetUsername": "duyen",
+    "isGroup": false
+  },
+  {
+    "id": "msg_1792210978233",
+    "sender": "me",
+    "senderName": "Nguyễn Thị Bé",
+    "senderUsername": "pexinhh03",
+    "type": "text",
+    "text": "alooo",
+    "time": "11:22",
+    "status": "sent",
+    "reactions": {},
+    "targetId": "u_thuongnt",
+    "targetUsername": "thuongnt",
+    "isGroup": false
   }
 ]
