@@ -1197,8 +1197,8 @@ function selectUser(userId) {
 
   if (window.innerWidth > 768) {
     setTimeout(() => {
-      document.getElementById("messageInput")?.focus({ preventScroll: true });
-    }, 100);
+      focusMessageInput(true);
+    }, 60);
   } else {
     window.scrollTo(0, 0);
     document.body.scrollTop = 0;
@@ -5112,7 +5112,115 @@ function handleClipboardPaste(e) {
   }
 }
 
+// ==========================================
+// TÍNH NĂNG TỰ ĐỘNG FOCUS Ô NHẬP KHI BẤM VÀO MÀN HÌNH CHAT (NHƯ ZALO)
+// ==========================================
+
+function focusMessageInput(preventScroll = true) {
+  const input = document.getElementById("messageInput");
+  if (!input || input.disabled) return;
+
+  // Nếu đang mở Modal (Cài đặt, Tạo nhóm, Đổi tên...) thì không cướp focus
+  const activeModal = document.querySelector(".custom-modal-backdrop[style*='display: flex'], #adminSettingsModal[style*='display: flex'], #authModal[style*='display: flex'], #lightboxModal[style*='display: flex']");
+  if (activeModal) return;
+
+  // Không focus nếu chưa chọn cuộc trò chuyện nào
+  if (!currentUserId) return;
+
+  try {
+    input.focus({ preventScroll: preventScroll });
+    // Đặt con trỏ văn bản ở cuối để gõ tiếp
+    const len = input.value.length;
+    input.setSelectionRange(len, len);
+  } catch (e) {
+    try { input.focus(); } catch (err) {}
+  }
+}
+
+function setupChatAreaFocusHandlers() {
+  const panelMain = document.querySelector(".panel-main");
+  const messagesArea = document.getElementById("messagesArea");
+
+  // 1. Khi CLICK vào màn hình hiển thị đoạn chat (messagesArea hoặc nền panel-main)
+  const handleChatScreenClick = (e) => {
+    // A. Bỏ qua nếu người dùng đang bôi đen / kéo chuột chọn văn bản để copy
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim().length > 0) return;
+
+    // B. Bỏ qua nếu bấm vào các phần tử tương tác:
+    // Nút bấm, đường link, input, textarea, select, biểu cảm, audio, ảnh xem to, v.v.
+    if (e.target.closest("button, a, input, textarea, select, .msg-action-btn, .msg-reaction-picker, .react-opt, .msg-reaction-pill, .voice-play-btn, .voice-progress-track, .msg-img-thumb, .msg-file-card, .lightbox-modal, .pinned-message-bar, .reply-preview-bar, .attachment-preview-bar, .voice-recorder-bar, .emoji-picker-popup")) {
+      return;
+    }
+
+    // C. Bấm vào bất kỳ đâu trên màn hình chat -> Kích hoạt ô nhập luôn như Zalo!
+    focusMessageInput();
+  };
+
+  if (messagesArea) {
+    messagesArea.addEventListener("click", handleChatScreenClick);
+  }
+  if (panelMain) {
+    panelMain.addEventListener("click", (e) => {
+      // Chỉ kích hoạt khi click bên ngoài header và bên ngoài thanh input
+      if (!e.target.closest(".chat-header") && !e.target.closest(".chat-input-bar")) {
+        handleChatScreenClick(e);
+      }
+    });
+  }
+
+  // 2. Khi người dùng bấm phím bất kỳ (Type-to-Chat như Zalo/Slack)
+  // Nếu đang xem màn hình chat mà gõ chữ -> Tự động nhập thẳng vào ô chat
+  document.addEventListener("keydown", (e) => {
+    // Không can thiệp nếu nhấn tổ hợp phím hệ thống (Ctrl, Alt, Win/Meta)
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+    // Bỏ qua các phím điều khiển / chức năng
+    const ignoreKeys = [
+      "Escape", "Tab", "CapsLock", "Shift", "Control", "Alt", "Meta", 
+      "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown",
+      "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"
+    ];
+    if (ignoreKeys.includes(e.key)) return;
+
+    // Kiểm tra xem focus hiện tại có đang nằm trong ô nhập khác không (tìm kiếm, modal...)
+    const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : "";
+    if (activeTag === "input" || activeTag === "textarea" || activeTag === "select") {
+      return;
+    }
+
+    // Không can thiệp nếu đang mở Modal
+    const activeModal = document.querySelector(".custom-modal-backdrop[style*='display: flex'], #adminSettingsModal[style*='display: flex'], #authModal[style*='display: flex'], #lightboxModal[style*='display: flex']");
+    if (activeModal) return;
+
+    // Tự động focus vào ô chat để ký tự vừa nhấn tự động nhập vào
+    const msgInput = document.getElementById("messageInput");
+    if (msgInput && !msgInput.disabled && currentUserId) {
+      focusMessageInput();
+    }
+  });
+
+  // 3. Khi chuyển cửa sổ quay lại EasyChat (window focus hoặc C# WINDOW_ACTIVATED)
+  window.addEventListener("focus", () => {
+    if (currentUserId) {
+      setTimeout(() => focusMessageInput(), 60);
+    }
+  });
+
+  if (window.chrome && window.chrome.webview && typeof window.chrome.webview.addEventListener === "function") {
+    window.chrome.webview.addEventListener("message", (e) => {
+      if (e.data === "WINDOW_ACTIVATED") {
+        if (currentUserId) {
+          setTimeout(() => focusMessageInput(), 60);
+        }
+      }
+    });
+  }
+}
+
 function setupEventListeners() {
+  setupChatAreaFocusHandlers();
+
   const btnSend = document.getElementById("btnSendMessage");
   const input = document.getElementById("messageInput");
 

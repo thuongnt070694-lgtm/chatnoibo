@@ -275,8 +275,19 @@ public partial class Form1 : Form
 
             // Dùng thư mục profile riêng biệt trong AppData để tránh cache quyền từ chối cũ
             string userDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EasyChat", "WebView2Profile");
+            CoreWebView2Environment? env = null;
 
-            var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder, options);
+            try
+            {
+                env = await CoreWebView2Environment.CreateAsync(null, userDataFolder, options);
+            }
+            catch (Exception ex) when (ex.HResult == unchecked((int)0x800700AA) || ex.Message.Contains("0x800700AA") || ex.Message.Contains("resource is in use"))
+            {
+                // Nếu thư mục chính đang bị khoá bởi tiến trình khác, tự động dùng thư mục phụ để luôn luôn khởi động thành công
+                string altDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EasyChat", $"WebView2Profile_{Environment.ProcessId}");
+                env = await CoreWebView2Environment.CreateAsync(null, altDataFolder, options);
+            }
+
             await webView.EnsureCoreWebView2Async(env);
 
             // Cấu hình các thiết lập của WebView2
