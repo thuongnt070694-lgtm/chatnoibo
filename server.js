@@ -263,6 +263,13 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = url.pathname;
 
+  // 0. ENDPOINT HEALTH CHECK / PING (Hỗ trợ client tự động dò tìm máy chủ hoạt động)
+  if (pathname === '/api/ping' || pathname === '/api/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', server: 'EasyChat', timestamp: Date.now() }));
+    return;
+  }
+
   // 1. ENDPOINT SERVER-SENT EVENTS (SSE)
   if (pathname === '/api/events') {
     const username = (url.searchParams.get('username') || '').toLowerCase().trim();

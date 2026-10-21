@@ -30,7 +30,11 @@ public partial class Form1 : Form
         "config.json"
     );
     private readonly string localConfigFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json");
-    private string currentServerUrl = "https://prompt-your-industry-exercises.trycloudflare.com";
+    private string currentServerUrl = "https://closes-hay-blair-allied.trycloudflare.com";
+    private readonly string discoveryRawUrl = "https://raw.githubusercontent.com/thuongnt070694-lgtm/chatnoibo/main/server_url.txt";
+    private readonly string discoveryApiUrl = "https://api.github.com/repos/thuongnt070694-lgtm/chatnoibo/contents/server_url.txt";
+    private bool isDiscovering = false;
+    private int autoRetryCount = 0;
     private bool isFullscreen = false;
     private FormWindowState prevWindowState = FormWindowState.Normal;
 
@@ -111,7 +115,8 @@ public partial class Form1 : Form
         var menuStrip = new MenuStrip();
         var menuHeThong = new ToolStripMenuItem("Hệ thống");
         
-        var itemDoiIp = new ToolStripMenuItem("Cài đặt địa chỉ Máy chủ LAN (F2)...", null, (s, e) => ShowChangeServerDialog());
+        var itemAutoDiscover = new ToolStripMenuItem("🔍 Tự động dò tìm máy chủ (Auto-Discovery)...", null, async (s, e) => await HandleConnectionFailureAsync(forceManual: true));
+        var itemDoiIp = new ToolStripMenuItem("Cài đặt địa chỉ Máy chủ thủ công (F2)...", null, (s, e) => ShowChangeServerDialog());
         var itemNotif = new ToolStripMenuItem("Cài đặt Thông báo & Riêng tư (F3)...", null, (s, e) => {
             webView?.CoreWebView2?.ExecuteScriptAsync("document.getElementById('settingsBtn')?.click();");
         });
@@ -119,6 +124,8 @@ public partial class Form1 : Form
         var itemDevTools = new ToolStripMenuItem("Công cụ gỡ lỗi (F12)", null, (s, e) => webView?.CoreWebView2?.OpenDevToolsWindow());
         var itemThoat = new ToolStripMenuItem("Thoát", null, (s, e) => Application.Exit());
 
+        menuHeThong.DropDownItems.Add(itemAutoDiscover);
+        menuHeThong.DropDownItems.Add(new ToolStripSeparator());
         menuHeThong.DropDownItems.Add(itemDoiIp);
         menuHeThong.DropDownItems.Add(itemNotif);
         menuHeThong.DropDownItems.Add(itemTaiLai);
@@ -157,6 +164,30 @@ public partial class Form1 : Form
     {
         try
         {
+            // 0. Kiểm tra nếu có Link_Ket_Noi_Hien_Tai.txt mới nhất ở thư mục chạy
+            string[] linkTextPaths = new[]
+            {
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Link_Ket_Noi_Hien_Tai.txt"),
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "Link_Ket_Noi_Hien_Tai.txt")
+            };
+            foreach (var p in linkTextPaths)
+            {
+                if (File.Exists(p))
+                {
+                    try
+                    {
+                        string txt = File.ReadAllText(p);
+                        var m = System.Text.RegularExpressions.Regex.Match(txt, @"https://[a-zA-Z0-9-]+\.trycloudflare\.com");
+                        if (m.Success)
+                        {
+                            currentServerUrl = m.Value;
+                            return;
+                        }
+                    }
+                    catch {}
+                }
+            }
+
             // 1. Nếu có file config.json đặt cạnh file .exe thì ưu tiên đọc
             if (File.Exists(localConfigFile))
             {
@@ -182,11 +213,11 @@ public partial class Form1 : Form
             }
 
             // 3. Mặc định dùng thẳng địa chỉ Cloudflare HTTPS an toàn kết nối toàn cầu:
-            currentServerUrl = "https://prompt-your-industry-exercises.trycloudflare.com";
+            currentServerUrl = "https://closes-hay-blair-allied.trycloudflare.com";
         }
         catch
         {
-            currentServerUrl = "https://prompt-your-industry-exercises.trycloudflare.com";
+            currentServerUrl = "https://closes-hay-blair-allied.trycloudflare.com";
         }
     }
 
@@ -329,50 +360,31 @@ public partial class Form1 : Form
                 }
             };
 
-            // Xử lý khi mất kết nối hoặc không tới được máy chủ (do khác mạng LAN / ngoài văn phòng)
-            webView.CoreWebView2.NavigationCompleted += (s, e) =>
+            // Xử lý khi mất kết nối hoặc không tới được máy chủ (Tự động kích hoạt Auto-Discovery)
+            webView.CoreWebView2.NavigationCompleted += async (s, e) =>
             {
-                if (!e.IsSuccess && e.WebErrorStatus != CoreWebView2WebErrorStatus.OperationCanceled)
+                bool isFailed = !e.IsSuccess && e.WebErrorStatus != CoreWebView2WebErrorStatus.OperationCanceled;
+                if (!isFailed && (e.HttpStatusCode >= 500 || e.HttpStatusCode == 530 || e.HttpStatusCode == 404))
                 {
-                    string errorHtml = $@"
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <meta charset='utf-8'>
-                        <title>Không thể kết nối máy chủ</title>
-                        <style>
-                            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0f172a; color: #f8fafc; text-align: center; }}
-                            .card {{ background: #1e293b; padding: 40px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); max-width: 520px; border: 1px solid #334155; }}
-                            .icon {{ font-size: 48px; margin-bottom: 12px; }}
-                            h2 {{ color: #f87171; margin-top: 0; font-size: 22px; }}
-                            p {{ color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 14px 0; }}
-                            .url-badge {{ background: #0f172a; padding: 8px 14px; border-radius: 8px; font-family: monospace; color: #38bdf8; font-size: 13px; word-break: break-all; display: inline-block; border: 1px solid #334155; }}
-                            .reasons {{ text-align: left; background: #0f172a; padding: 14px 18px; border-radius: 8px; margin: 16px 0; font-size: 13px; color: #cbd5e1; border-left: 3px solid #f59e0b; }}
-                            .btn {{ display: inline-block; padding: 10px 20px; margin: 8px 6px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; }}
-                            .btn-primary {{ background: #2563eb; color: #fff; }}
-                            .btn-secondary {{ background: #334155; color: #f8fafc; }}
-                            .btn:hover {{ opacity: 0.9; }}
-                        </style>
-                    </head>
-                    <body>
-                        <div class='card'>
-                            <div class='icon'>📡</div>
-                            <h2>Không thể kết nối tới Máy chủ</h2>
-                            <p>Ứng dụng không thể kết nối tới địa chỉ:</p>
-                            <div class='url-badge'>{currentServerUrl}</div>
-                            <div class='reasons'>
-                                <strong>⚠️ Nguyên nhân chính:</strong><br>
-                                1. Bạn đang ở <strong>văn phòng khác</strong> hoặc <strong>mạng Wi-Fi khác</strong> ngoài mạng LAN văn phòng chính (IP 10.10.x.x chỉ dùng nội bộ).<br>
-                                2. Máy tính chạy máy chủ chưa khởi động hoặc bị chặn tường lửa (Firewall).
-                            </div>
-                            <div>
-                                <button class='btn btn-primary' onclick='window.chrome.webview.postMessage(""CHANGE_SERVER"")'>⚙️ Đổi địa chỉ máy chủ (F2)</button>
-                                <button class='btn btn-secondary' onclick='location.reload()'>🔄 Thử lại (F5)</button>
-                            </div>
-                        </div>
-                    </body>
-                    </html>";
-                    webView.CoreWebView2.NavigateToString(errorHtml);
+                    isFailed = true;
+                }
+
+                if (isFailed)
+                {
+                    await HandleConnectionFailureAsync();
+                }
+                else
+                {
+                    autoRetryCount = 0;
+                    try
+                    {
+                        string title = await webView.CoreWebView2.ExecuteScriptAsync("document.title");
+                        if (!string.IsNullOrEmpty(title) && (title.Contains("1033") || title.Contains("Error 530") || title.Contains("Cloudflare Error")))
+                        {
+                            await HandleConnectionFailureAsync();
+                        }
+                    }
+                    catch {}
                 }
             };
 
@@ -389,9 +401,26 @@ public partial class Form1 : Form
                     {
                         TriggerVoiceTyping();
                     }
+                    else if (rawMessage == "RETRY_AUTO_DISCOVERY" || jsonMessage.Contains("RETRY_AUTO_DISCOVERY") ||
+                             rawMessage == "CHECK_SERVER_HEALTH" || jsonMessage.Contains("CHECK_SERVER_HEALTH"))
+                    {
+                        this.BeginInvoke(async () =>
+                        {
+                            await HandleConnectionFailureAsync(forceManual: true);
+                        });
+                    }
                     else if (rawMessage == "CHANGE_SERVER" || jsonMessage.Contains("CHANGE_SERVER"))
                     {
                         this.BeginInvoke(() => ShowChangeServerDialog());
+                    }
+                    else if (rawMessage == "USE_LOCALHOST" || jsonMessage.Contains("USE_LOCALHOST"))
+                    {
+                        this.BeginInvoke(() =>
+                        {
+                            currentServerUrl = "http://localhost:3888";
+                            SaveConfig(currentServerUrl);
+                            NavigateToServer();
+                        });
                     }
                     else if (jsonMessage.Contains("NEW_MESSAGE_NOTIFICATION") || (rawMessage != null && rawMessage.Contains("NEW_MESSAGE_NOTIFICATION")))
                     {
@@ -476,6 +505,258 @@ public partial class Form1 : Form
             }
             webView.CoreWebView2.Navigate(url);
         }
+    }
+
+    private async Task HandleConnectionFailureAsync(bool forceManual = false)
+    {
+        if (isDiscovering && !forceManual) return;
+        isDiscovering = true;
+
+        try
+        {
+            ShowDiscoveringLoadingScreen();
+
+            string? newUrl = await AutoDiscoverServerUrlAsync();
+            if (!string.IsNullOrEmpty(newUrl))
+            {
+                currentServerUrl = newUrl;
+                SaveConfig(currentServerUrl);
+                autoRetryCount = 0;
+                NavigateToServer();
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Auto discovery error: " + ex.Message);
+        }
+        finally
+        {
+            isDiscovering = false;
+        }
+
+        autoRetryCount++;
+        ShowConnectionFailedScreen();
+    }
+
+    private async Task<string?> AutoDiscoverServerUrlAsync()
+    {
+        using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(3.5) };
+        httpClient.DefaultRequestHeaders.Add("User-Agent", "EasyChat-Desktop");
+
+        // 1. Kiểm tra nếu máy tính này là máy chủ nội bộ (localhost:3888 đang hoạt động)
+        try
+        {
+            var localResp = await httpClient.GetAsync("http://localhost:3888/api/ping");
+            if (localResp.IsSuccessStatusCode)
+            {
+                return "http://localhost:3888";
+            }
+        }
+        catch {}
+
+        // 2. Kiểm tra nếu có file Link_Ket_Noi_Hien_Tai.txt ở thư mục máy
+        string[] checkPaths = new[]
+        {
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Link_Ket_Noi_Hien_Tai.txt"),
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "Link_Ket_Noi_Hien_Tai.txt")
+        };
+        foreach (var p in checkPaths)
+        {
+            if (File.Exists(p))
+            {
+                try
+                {
+                    string txt = File.ReadAllText(p);
+                    var m = System.Text.RegularExpressions.Regex.Match(txt, @"https://[a-zA-Z0-9-]+\.trycloudflare\.com");
+                    if (m.Success)
+                    {
+                        string candidate = m.Value;
+                        if (await IsUrlAliveAsync(httpClient, candidate))
+                        {
+                            return candidate;
+                        }
+                    }
+                }
+                catch {}
+            }
+        }
+
+        // 3. Tự động đồng bộ thời gian thực qua GitHub API (Zero cache, cập nhật tức thì 0 giây)
+        try
+        {
+            using var apiReq = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, discoveryApiUrl);
+            apiReq.Headers.Add("User-Agent", "EasyChat-Desktop");
+            var apiResp = await httpClient.SendAsync(apiReq);
+            if (apiResp.IsSuccessStatusCode)
+            {
+                string json = await apiResp.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("content", out var contentProp))
+                {
+                    string b64 = contentProp.GetString()?.Replace("\n", "").Replace("\r", "") ?? "";
+                    if (!string.IsNullOrEmpty(b64))
+                    {
+                        byte[] bytes = Convert.FromBase64String(b64);
+                        string decoded = System.Text.Encoding.UTF8.GetString(bytes);
+                        var m = System.Text.RegularExpressions.Regex.Match(decoded, @"https://[a-zA-Z0-9-]+\.trycloudflare\.com");
+                        if (m.Success)
+                        {
+                            string candidate = m.Value;
+                            if (await IsUrlAliveAsync(httpClient, candidate))
+                            {
+                                return candidate;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch {}
+
+        // 4. Dự phòng qua GitHub Raw (server_url.txt)
+        try
+        {
+            long ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            string rawUrlWithTs = $"{discoveryRawUrl}?t={ts}";
+            using var req = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, rawUrlWithTs);
+            req.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true, NoStore = true };
+
+            var resp = await httpClient.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                string body = await resp.Content.ReadAsStringAsync();
+                var m = System.Text.RegularExpressions.Regex.Match(body, @"https://[a-zA-Z0-9-]+\.trycloudflare\.com");
+                if (m.Success)
+                {
+                    string candidate = m.Value;
+                    if (await IsUrlAliveAsync(httpClient, candidate))
+                    {
+                        return candidate;
+                    }
+                }
+            }
+        }
+        catch {}
+
+        return null;
+    }
+
+    private async Task<bool> IsUrlAliveAsync(System.Net.Http.HttpClient client, string url)
+    {
+        try
+        {
+            string pingUrl = url.TrimEnd('/') + "/api/ping";
+            using var pingReq = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, pingUrl);
+            var resp = await client.SendAsync(pingReq, System.Net.Http.HttpCompletionOption.ResponseHeadersRead);
+            if (resp.IsSuccessStatusCode) return true;
+        }
+        catch {}
+
+        try
+        {
+            using var homeReq = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, url.TrimEnd('/'));
+            var resp = await client.SendAsync(homeReq, System.Net.Http.HttpCompletionOption.ResponseHeadersRead);
+            return (int)resp.StatusCode >= 200 && (int)resp.StatusCode < 400;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void ShowDiscoveringLoadingScreen()
+    {
+        if (webView == null || webView.CoreWebView2 == null) return;
+        string loadingHtml = @"
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='utf-8'>
+            <title>Đang kết nối EasyChat...</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0f172a; color: #f8fafc; text-align: center; }
+                .card { background: #1e293b; padding: 40px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); max-width: 480px; border: 1px solid #334155; }
+                .spinner { width: 48px; height: 48px; border: 4px solid #334155; border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.9s linear infinite; margin: 0 auto 20px; }
+                @keyframes spin { to { transform: rotate(360deg); } }
+                h2 { color: #38bdf8; font-size: 20px; margin-top: 0; }
+                p { color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 10px 0 0; }
+                .badge { display: inline-block; background: #0f172a; color: #f59e0b; padding: 6px 14px; border-radius: 20px; font-size: 12px; margin-top: 14px; border: 1px solid #334155; }
+            </style>
+        </head>
+        <body>
+            <div class='card'>
+                <div class='spinner'></div>
+                <h2>Đang tìm máy chủ EasyChat...</h2>
+                <p>Hệ thống đang tự động đồng bộ liên kết máy chủ mới nhất.<br>Bạn không cần phải thao tác gì.</p>
+                <div class='badge'>⚡ Auto-Discovery Đang quét máy chủ...</div>
+            </div>
+        </body>
+        </html>";
+        webView.CoreWebView2.NavigateToString(loadingHtml);
+    }
+
+    private void ShowConnectionFailedScreen()
+    {
+        if (webView == null || webView.CoreWebView2 == null) return;
+        string errorHtml = $@"
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='utf-8'>
+            <title>Chưa kết nối được máy chủ</title>
+            <style>
+                body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0f172a; color: #f8fafc; text-align: center; }}
+                .card {{ background: #1e293b; padding: 36px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); max-width: 540px; border: 1px solid #334155; }}
+                .icon {{ font-size: 44px; margin-bottom: 12px; }}
+                h2 {{ color: #f87171; margin-top: 0; font-size: 21px; }}
+                p {{ color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 12px 0; }}
+                .countdown-box {{ background: #0f172a; border: 1px solid #38bdf8; border-radius: 10px; padding: 12px; margin: 16px 0; font-size: 14px; color: #38bdf8; font-weight: 500; }}
+                .timer-num {{ font-size: 20px; font-weight: bold; color: #f59e0b; }}
+                .url-badge {{ background: #0f172a; padding: 6px 12px; border-radius: 8px; font-family: monospace; color: #94a3b8; font-size: 12px; word-break: break-all; margin-bottom: 10px; display: inline-block; border: 1px solid #334155; }}
+                .reasons {{ text-align: left; background: #0f172a; padding: 12px 16px; border-radius: 8px; margin: 14px 0; font-size: 13px; color: #cbd5e1; border-left: 3px solid #f59e0b; }}
+                .btn {{ display: inline-block; padding: 10px 18px; margin: 6px 4px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }}
+                .btn-primary {{ background: #2563eb; color: #fff; }}
+                .btn-secondary {{ background: #334155; color: #f8fafc; }}
+                .btn-success {{ background: #10b981; color: #fff; }}
+                .btn:hover {{ opacity: 0.9; }}
+            </style>
+        </head>
+        <body>
+            <div class='card'>
+                <div class='icon'>📡</div>
+                <h2>Chưa kết nối được tới Máy chủ</h2>
+                <p>Máy chủ trên máy tính chính có thể đang tắt hoặc đang khởi động lại Windows.</p>
+                <div class='url-badge'>Đã thử: {currentServerUrl}</div>
+                <div class='countdown-box'>
+                    🔄 Hệ thống sẽ tự động tìm và kết nối lại sau: <span id='timer' class='timer-num'>5</span> giây
+                </div>
+                <div class='reasons'>
+                    <strong>💡 Gợi ý:</strong><br>
+                    • Nếu máy tính chính vừa bật, vui lòng đợi vài giây để hệ thống hoàn tất khởi động ngầm.<br>
+                    • Ứng dụng sẽ tự động kết nối ngay khi máy chủ online mà bạn không cần làm gì!
+                </div>
+                <div>
+                    <button class='btn btn-primary' onclick='window.chrome.webview.postMessage(""RETRY_AUTO_DISCOVERY"")'>🔍 Tìm lại ngay</button>
+                    <button class='btn btn-secondary' onclick='window.chrome.webview.postMessage(""CHANGE_SERVER"")'>⚙️ Cài IP thủ công (F2)</button>
+                    <button class='btn btn-success' onclick='window.chrome.webview.postMessage(""USE_LOCALHOST"")'>🏠 Dùng localhost:3888</button>
+                </div>
+            </div>
+            <script>
+                let sec = 5;
+                const timerEl = document.getElementById('timer');
+                const interval = setInterval(() => {{
+                    sec--;
+                    if (timerEl) timerEl.innerText = sec;
+                    if (sec <= 0) {{
+                        clearInterval(interval);
+                        window.chrome.webview.postMessage('RETRY_AUTO_DISCOVERY');
+                    }}
+                }}, 1000);
+            </script>
+        </body>
+        </html>";
+        webView.CoreWebView2.NavigateToString(errorHtml);
     }
 
     private void Form1_KeyDown(object? sender, KeyEventArgs e)

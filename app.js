@@ -4421,6 +4421,7 @@ function sendCallSignal(signal) {
 // 12. KẾT NỐI REALTIME SSE VỚI SERVER
 // ==========================================
 let currentEventSource = null;
+let _sseErrorCount = 0;
 
 function initRealtimeSSE() {
   if (!window.location.protocol.startsWith("http") || !currentUser) return;
@@ -4479,10 +4480,17 @@ function initRealtimeSSE() {
         try { currentEventSource.close(); } catch (e) {}
         currentEventSource = null;
       }
+      _sseErrorCount++;
+      if (_sseErrorCount >= 4) {
+        try {
+          window.chrome?.webview?.postMessage("CHECK_SERVER_HEALTH");
+        } catch (e) {}
+      }
       setTimeout(initRealtimeSSE, 3000);
     };
 
     currentEventSource.onmessage = function(event) {
+      _sseErrorCount = 0;
       try {
         if (!event.data || event.data.trim().startsWith(':')) return; // Bỏ qua heartbeat ping
         const payload = JSON.parse(event.data);
